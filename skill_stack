@@ -1,0 +1,54 @@
+1. 프론트엔드(Frontend)
+범주	기술
+프레임워크	React, Next.js
+UI 구성	Tailwind CSS, DaisyUI
+문서 뷰어	PDF.js (계약서 분석 결과 시각화)
+HTTP 통신	Axios / Fetch
+상태관리	Zustand 또는 Redux (선택)
+그래프 시각화(선택)	Chart.js / Recharts
+
+2. 백엔드(Backend)
+범주	기술
+서버 프레임워크	FastAPI (Python), Node.js(Express) 중 택1 또는 병행
+API 통신	REST API
+데이터 캐싱	Redis
+인증	JWT 기반 인증 구조
+파일 업로드 Presigned URL 발급	AWS SDK (Python/Node)
+
+3. AI 분석(AI Engine)
+기능	기술
+법률 분석	Lawform AI API
+결과 재가공·요약	OpenAI GPT-4.1 / GPT-5
+요약/하이라이트	Prompt 기반 위험 문구 추출 및 강조
+리포트 구성	GPT 기반 자동 생성
+
+4. 문서 처리(Document Processing)
+기능	기술
+PDF 텍스트 추출	PyMuPDF
+테이블 추출 보조	pdfplumber
+계약서 이미지/OCR	Tesseract OCR (kor+eng 모델)
+파일 바이러스 검사	ClamAV
+해시 무결성 검증	SHA-256
+
+5. 데이터베이스(Database)
+DB	목적
+PostgreSQL	사용자, 분석 기록, 리포트 저장
+Redis	캐싱 및 타임아웃 대응
+
+6. 인프라 및 보안(Infrastructure & Security)
+기능	기술
+파일 저장	AWS S3
+서버	AWS EC2 / Lightsail (선택)
+배포	AWS CloudFront, S3 Static Deploy
+인증/인가	JWT + HTTPS
+보안	TLS, AES-256, CORS 정책
+
+7. 공공데이터 연동(API)
+
+(요구분석서 기반)
+
+구분	API	제공 정보
+실거래가	국토부 실거래가 API	보증금 적정성 판단
+등기정보	CODEF 등기조회 API	소유자/선순위 권리 확인
+보증정보	HUG 보증보험 API	보증가입 가능 여부
+주소 표준화	행안부 주소 API	정확한 주소 매핑
