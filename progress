@@ -1,0 +1,8 @@
+11/21 파일 올리기 성공
+11/21 FastAPI 서버 실행 성공
+11/21 pdf 파일일시 200 그외 파일은 500출력
+
+
+11/28 PyMuPDF 정상출력
+11/28 Sha-256 정상작동
+11/28 Upload_schema.py에 UploadResponse로 정형화된 응답 유지
