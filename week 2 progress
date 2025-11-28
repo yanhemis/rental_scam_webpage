@@ -1,0 +1,139 @@
+📘 Week 2 — 전세사기 예방 AI 플랫폼 백엔드 개발 정리
+
+본 문서는 2주차까지 개발한 백엔드 기능을 정리한 문서입니다.
+1주차의 “업로드 → 텍스트 추출” 기능 위에,
+2주차에서는 “계약서 분석” 기능을 추가하여 업로드 → 분석까지 전체 흐름이 연결되었습니다.
+
+🚀 2주차 주요 목표
+
+업로드된 PDF 텍스트를 기반으로 분석 요청 처리
+
+Lawform AI 연동 구조 설계 및 모듈 구현
+
+위험요소 분석 결과를 표준 스키마화(Pydantic)
+
+/contracts/analyze 엔드포인트 완성
+
+전체 백엔드 로직 흐름 정리
+
+테스트 스크립트 초안 준비
+
+🧩 구현한 기능 상세
+1. 텍스트 정제 모듈 (text_cleaner.py)
+
+PDF에서 추출한 텍스트는 불필요한 줄바꿈/공백이 많기 때문에
+분석에 적합하도록 정제하는 단계가 필요합니다.
+
+공백/개행 처리
+
+조항 단위 분리 가능
+
+후처리 로직 추가 용이
+
+위치: app/services/text_cleaner.py
+
+2. Lawform AI 연동 클라이언트 (lawform_client.py)
+
+비동기 HTTP 클라이언트(httpx.AsyncClient) 기반으로 Lawform AI를 호출합니다.
+
+주요 기능
+
+분석 텍스트 전송 (request_lawform_analysis)
+
+Lawform 응답(JSON)을 프로젝트 내부 표준 스키마로 변환 (normalize_lawform_result)
+
+환경변수 기반 API URL, KEY 지원
+
+위치: app/services/lawform_client.py
+
+3. 분석 스키마 (analysis_schemas.py)
+
+Lawform 결과를 통일된 규격으로 만들어
+프론트/백엔드 어디에서나 동일하게 사용할 수 있도록 구성했습니다.
+
+구조
+class RiskItem(BaseModel):
+    type: str
+    severity: str
+    text: str
+    reason: Optional[str]
+    recommendation: Optional[str]
+
+class AnalysisResult(BaseModel):
+    contract_id: str
+    overall_score: Optional[int]
+    risk_items: List[RiskItem]
+
+class AnalyzeRequest(BaseModel):
+    contract_id: str
+    text: str
+
+
+위치: app/schemas/analysis_schemas.py
+
+4. 분석 엔드포인트 (/contracts/analyze)
+요청 방식
+POST /contracts/analyze
+
+입력(JSON)
+{
+  "contract_id": "sha256-hash",
+  "text": "추출된 계약서 전체 텍스트"
+}
+
+처리 흐름
+
+텍스트 정제 (clean_raw_text)
+
+Lawform AI 분석 요청
+
+Lawform 응답 → 표준 스키마로 변환
+
+결과 반환
+
+응답(JSON: AnalysisResult)
+{
+  "contract_id": "...",
+  "overall_score": 72,
+  "risk_items": [
+    {
+      "type": "등기 불일치",
+      "severity": "high",
+      "text": "문제가 있는 조항...",
+      "reason": "설명...",
+      "recommendation": "대응방법..."
+    }
+  ]
+}
+
+
+위치: app/routers/analyze.py
+
+📂 전체 백엔드 흐름(1~2주차)
+[1] POST /upload  
+    → PDF 파일 저장  
+    → SHA-256 계약 ID 생성  
+    → PDF에서 텍스트 추출(full_text)  
+    → preview + full_text 반환  
+                         ↓  
+[2] POST /contracts/analyze  
+    → contract_id(sha256) + text(full_text) 전달  
+    → 텍스트 정제  
+    → Lawform AI 분석 요청  
+    → 위험요소 스키마화  
+    → AnalysisResult 반환
+
+
+이로써 업로드 → 분석까지 최소 기능 MVP 파이프라인이 완성되었습니다.
+
+🎉 2주차 요약
+
+ 텍스트 정제 모듈 완성
+
+ Lawform 클라이언트 구현
+
+ 분석 스키마 확정
+
+ 분석 라우터 완성
+
+ 서버 정상 구동
