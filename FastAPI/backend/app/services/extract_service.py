@@ -7,12 +7,13 @@ from app.core.logging_config import log_event
 from app.services import metrics_service, storage_service
 from app.services.image_service import extract_text_from_image
 from app.utils.pdf_utils import extract_text_from_pdf
+from typing import Optional, Union
 
 settings = get_settings()
 OCR_SEMAPHORE = asyncio.Semaphore(settings.max_concurrent_ocr_jobs)
 
 
-def _extract_text_once(file_path: str | Path, content_type: str | None) -> str:
+def _extract_text_once(file_path: Union[str, Path], content_type: Optional[str]) -> str:
     normalized_content_type = (content_type or "").lower()
 
     if normalized_content_type == "application/pdf":
@@ -36,8 +37,8 @@ def _estimate_text_quality(extracted_text: str) -> float:
 
 
 async def extract_text_with_retry(
-    file_path: str | Path,
-    content_type: str | None,
+    file_path: Union[str, Path],
+    content_type: Optional[str],
     *,
     document_id: str,
     request_id: str,

@@ -1,9 +1,10 @@
 from pathlib import Path
 
 import fitz
+from typing import Union
 
 
-def extract_text_from_pdf(file_path: str | Path) -> str:
+def extract_text_from_pdf(file_path: Union[str, Path]) -> str:
     pdf_path = Path(file_path)
     extracted_pages: list[str] = []
 

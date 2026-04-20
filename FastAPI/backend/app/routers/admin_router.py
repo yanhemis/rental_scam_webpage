@@ -13,6 +13,7 @@ from app.schemas.document_schema import (
 )
 from app.services import extract_service, metrics_service, storage_service
 from app.services.analysis_service import run_analysis_with_retry
+from typing import Optional
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -20,11 +21,11 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 def _filter_documents(
     records: list[DocumentMetadataRecord],
     *,
-    status_filter: DocumentStatusType | None,
-    analysis_status: str | None,
-    has_error: bool | None,
-    source: str | None,
-    user_id: str | None,
+    status_filter: Optional[DocumentStatusType],
+    analysis_status: Optional[str],
+    has_error: Optional[bool],
+    source: Optional[str],
+    user_id: Optional[str],
 ) -> list[DocumentMetadataRecord]:
     filtered = records
 
@@ -44,11 +45,11 @@ def _filter_documents(
 
 @router.get("/documents", response_model=AdminDocumentListResponse)
 async def list_admin_documents(
-    status_filter: DocumentStatusType | None = Query(default=None, alias="status"),
-    analysis_status: str | None = Query(default=None),
-    has_error: bool | None = Query(default=None),
-    source: str | None = Query(default=None),
-    user_id: str | None = Query(default=None),
+    status_filter: Optional[DocumentStatusType] = Query(default=None, alias="status"),
+    analysis_status: Optional[str] = Query(default=None),
+    has_error: Optional[bool] = Query(default=None),
+    source: Optional[str] = Query(default=None),
+    user_id: Optional[str] = Query(default=None),
 ):
     result = storage_service.list_document_metadata()
     filtered = _filter_documents(

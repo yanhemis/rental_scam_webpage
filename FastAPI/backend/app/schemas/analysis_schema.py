@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -33,5 +34,5 @@ class AnalysisResponse(BaseModel):
     clauses: list[ClauseAnalysis]
     retry_count: int = 0
     max_retry_count: int = 0
-    processing_started_at: datetime | None = None
-    processing_finished_at: datetime | None = None
+    processing_started_at: Optional[datetime] = None
+    processing_finished_at: Optional[datetime] = None

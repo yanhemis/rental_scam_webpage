@@ -2,9 +2,10 @@ from pathlib import Path
 
 import pytesseract
 from PIL import Image, UnidentifiedImageError
+from typing import Union
 
 
-def extract_text_from_image(file_path: str | Path) -> str:
+def extract_text_from_image(file_path: Union[str, Path]) -> str:
     image_path = Path(file_path)
 
     try:

@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
+from typing import Optional
 
 
 class DocumentSourceType(str, Enum):
@@ -34,13 +35,13 @@ class DocumentUploadResponse(BaseModel):
     full_text: str
     retry_count: int
     max_retry_count: int
-    deletion_scheduled_at: datetime | None = None
+    deletion_scheduled_at: Optional[datetime] = None
 
 
 class DocumentMetadataRecord(BaseModel):
     document_id: str
     request_id: str
-    user_id: str | None = None
+    user_id: Optional[str] = None
     file_name: str
     file_path: str
     sha256: str
@@ -53,13 +54,13 @@ class DocumentMetadataRecord(BaseModel):
     report_status: str = "pending"
     retry_count: int = 0
     max_retry_count: int = 0
-    last_error: str | None = None
-    last_error_at: datetime | None = None
-    next_retry_at: datetime | None = None
-    processing_started_at: datetime | None = None
-    processing_finished_at: datetime | None = None
-    extracted_text_quality: float | None = None
-    deletion_scheduled_at: datetime | None = None
+    last_error: Optional[str] = None
+    last_error_at: Optional[datetime] = None
+    next_retry_at: Optional[datetime] = None
+    processing_started_at: Optional[datetime] = None
+    processing_finished_at: Optional[datetime] = None
+    extracted_text_quality: Optional[float] = None
+    deletion_scheduled_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
@@ -76,10 +77,10 @@ class DocumentMetadataSyncResponse(BaseModel):
 
 
 class DocumentStatusUpdateRequest(BaseModel):
-    status: DocumentStatusType | None = None
-    analysis_status: str | None = None
-    report_status: str | None = None
-    user_id: str | None = None
-    retry_count: int | None = None
-    last_error: str | None = None
-    extracted_text_quality: float | None = None
+    status: Optional[DocumentStatusType] = None
+    analysis_status: Optional[str] = None
+    report_status: Optional[str] = None
+    user_id: Optional[str] = None
+    retry_count: Optional[int] = None
+    last_error: Optional[str] = None
+    extracted_text_quality: Optional[float] = None

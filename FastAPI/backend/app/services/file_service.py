@@ -5,9 +5,10 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.config import get_settings
+from typing import Optional
 
 
-def _safe_filename(filename: str | None) -> str:
+def _safe_filename(filename: Optional[str]) -> str:
     original_name = Path(filename or "upload.bin").name
     suffix = Path(original_name).suffix.lower()
     stem = Path(original_name).stem or "upload"
