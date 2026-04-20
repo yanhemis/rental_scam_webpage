@@ -3,3 +3,5 @@ uvicorn
 python-multipart
 pydantic
 PyMuPDF
+pytesseract
+Pillow
