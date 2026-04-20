@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.core.logging_config import clear_request_id, configure_logging, log_event, set_request_id
 from app.routers.analysis_router import router as analysis_router
+from app.routers.admin_router import router as admin_router
 from app.routers.auth_router import router as auth_router
 from app.routers.report_router import router as report_router
 from app.routers.retention_router import router as retention_router
@@ -78,6 +79,7 @@ async def request_logging_middleware(request: Request, call_next):
 
 
 app.include_router(document_router, prefix=settings.api_prefix)
+app.include_router(admin_router, prefix=settings.api_prefix)
 app.include_router(analysis_router, prefix=settings.api_prefix)
 app.include_router(report_router, prefix=settings.api_prefix)
 app.include_router(auth_router, prefix=settings.api_prefix)
