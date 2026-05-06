@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -19,13 +20,8 @@ class Settings:
     clova_mock_enabled = True
     log_level = "INFO"
 
-    # 🔽 여기 중요 (PostgreSQL 연결)
     database_url: str = "postgresql+psycopg2://postgres:1q2w3e4r!@localhost:5432/jeonse_db"
-
-    # 🔽 이제 PostgreSQL 쓰니까 변경
     metadata_storage_backend = "postgresql"
-
-    # 기존 설정 유지 (나중 대비)
     dynamodb_table_name = "jeonse-document-metadata"
 
     metrics_namespace = "JeonseFraudPrevention"
@@ -40,6 +36,22 @@ class Settings:
 
     max_concurrent_ocr_jobs = 4
     max_concurrent_analysis_jobs = 4
+
+    tesseract_cmd = os.getenv("TESSERACT_CMD") or None
+    tesseract_lang = os.getenv("TESSERACT_LANG", "kor+eng")
+    ocr_upscale_factor = float(os.getenv("OCR_UPSCALE_FACTOR", "2.0"))
+    ocr_threshold_bias = int(os.getenv("OCR_THRESHOLD_BIAS", "165"))
+    ocr_crop_border_ratio = float(os.getenv("OCR_CROP_BORDER_RATIO", "0.02"))
+    ocr_rotation_angles = tuple(
+        int(angle.strip())
+        for angle in os.getenv("OCR_ROTATION_ANGLES", "0,-3,3,-6,6").split(",")
+        if angle.strip()
+    )
+    tesseract_psm_modes = tuple(
+        int(mode.strip())
+        for mode in os.getenv("TESSERACT_PSM_MODES", "6,11,4").split(",")
+        if mode.strip()
+    )
 
     supported_content_types = {
         "application/pdf",
