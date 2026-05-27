@@ -6,12 +6,18 @@ from app.schemas.admin_schema import (
     AdminDocumentListResponse,
     AdminRetryResponse,
 )
+from app.schemas.contract_extract_schema import ExtractedContractInfo
 from app.schemas.document_schema import (
     DocumentMetadataRecord,
     DocumentStatusType,
     DocumentStatusUpdateRequest,
 )
-from app.services import extract_service, metrics_service, storage_service
+from app.services import (
+    contract_extract_service,
+    extract_service,
+    metrics_service,
+    storage_service,
+)
 from app.services.analysis_service import run_analysis_with_retry
 from typing import Optional
 
@@ -41,6 +47,37 @@ def _filter_documents(
         filtered = [item for item in filtered if item.user_id == user_id]
 
     return filtered
+
+
+async def _retry_contract_extraction(
+    record: DocumentMetadataRecord,
+    *,
+    request_id: str,
+) -> ExtractedContractInfo:
+    extracted_text = storage_service.get_extracted_text(record.document_id)
+    if extracted_text is None:
+        extracted_text, quality, retry_count = await extract_service.extract_text_with_retry(
+            record.file_path,
+            record.content_type,
+            document_id=record.document_id,
+            request_id=request_id,
+        )
+        storage_service.save_extracted_text(record.document_id, extracted_text)
+        storage_service.update_document_metadata(
+            record.document_id,
+            DocumentStatusUpdateRequest(
+                status=DocumentStatusType.text_extracted,
+                retry_count=retry_count,
+                extracted_text_quality=quality,
+            ),
+        )
+
+    result = contract_extract_service.extract_contract_fields(
+        extracted_text,
+        document_id=record.document_id,
+    )
+    storage_service.save_contract_extraction(result)
+    return result
 
 
 @router.get("/documents", response_model=AdminDocumentListResponse)
@@ -122,6 +159,7 @@ async def retry_document_ocr(request: Request, document_id: str):
         document_id=document_id,
         request_id=request_id,
     )
+    storage_service.save_extracted_text(document_id, extracted_text)
 
     storage_service.update_document_metadata(
         document_id,
@@ -131,6 +169,11 @@ async def retry_document_ocr(request: Request, document_id: str):
             extracted_text_quality=quality,
         ),
     )
+    extraction_result = contract_extract_service.extract_contract_fields(
+        extracted_text,
+        document_id=document_id,
+    )
+    storage_service.save_contract_extraction(extraction_result)
     metrics_service.record_metric("AdminOCRRetryTriggered")
     log_event(
         "admin_ocr_retry_completed",
@@ -146,6 +189,31 @@ async def retry_document_ocr(request: Request, document_id: str):
         retry_count=retry_count,
         message=f"OCR 재처리가 완료되었습니다. 추출 길이: {len(extracted_text)}",
     )
+
+
+@router.post(
+    "/documents/{document_id}/retry-extract-fields",
+    response_model=ExtractedContractInfo,
+)
+async def retry_document_extract_fields(request: Request, document_id: str):
+    record = storage_service.get_document_metadata(document_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="문서를 찾을 수 없습니다.",
+        )
+
+    request_id = getattr(request.state, "request_id", get_request_id())
+    result = await _retry_contract_extraction(record, request_id=request_id)
+    metrics_service.record_metric("AdminContractFieldExtractionRetryTriggered")
+    log_event(
+        "admin_contract_field_extraction_retry_completed",
+        event="admin_contract_field_extraction_retry_completed",
+        request_id=request_id,
+        document_id=document_id,
+        missing_fields=result.missing_fields,
+    )
+    return result
 
 
 @router.post("/documents/{document_id}/retry-analysis", response_model=AdminRetryResponse)

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from app.config import Settings
 from app.core.logging_config import get_request_id, log_event
 from app.dependencies import get_app_settings
+from app.schemas.contract_extract_schema import ExtractedContractInfo
 from app.schemas.document_schema import (
     DocumentMetadataRecord,
     DocumentMetadataSyncResponse,
@@ -14,7 +15,13 @@ from app.schemas.document_schema import (
     DocumentStatusUpdateRequest,
     DocumentUploadResponse,
 )
-from app.services import extract_service, file_service, metrics_service, storage_service
+from app.services import (
+    contract_extract_service,
+    extract_service,
+    file_service,
+    metrics_service,
+    storage_service,
+)
 from typing import Optional
 
 router = APIRouter(tags=["documents"])
@@ -98,6 +105,16 @@ async def _handle_upload(
             extracted_text_quality=quality,
         ),
     )
+    try:
+        _cache_contract_extraction(document_id, extracted_text)
+    except Exception as exc:
+        log_event(
+            "contract_extract_cache_failed",
+            event="contract_extract_cache_failed",
+            request_id=request_id,
+            document_id=document_id,
+            error_message=str(exc),
+        )
     metrics_service.record_metric("UploadSuccessCount")
     log_event(
         "document_uploaded",
@@ -126,6 +143,53 @@ async def _handle_upload(
         max_retry_count=metadata.max_retry_count,
         deletion_scheduled_at=metadata.deletion_scheduled_at,
     )
+
+
+def _cache_contract_extraction(document_id: str, extracted_text: str) -> ExtractedContractInfo:
+    storage_service.save_extracted_text(document_id, extracted_text)
+    result = contract_extract_service.extract_contract_fields(
+        extracted_text,
+        document_id=document_id,
+    )
+    storage_service.save_contract_extraction(result)
+    return result
+
+
+async def _build_contract_extraction(
+    record: DocumentMetadataRecord,
+    *,
+    request_id: str,
+    use_cached_result: bool = True,
+) -> ExtractedContractInfo:
+    if use_cached_result:
+        cached_result = storage_service.get_contract_extraction(record.document_id)
+        if cached_result is not None:
+            return cached_result
+
+    extracted_text = storage_service.get_extracted_text(record.document_id)
+    if extracted_text is None:
+        extracted_text, quality, retry_count = await extract_service.extract_text_with_retry(
+            record.file_path,
+            record.content_type,
+            document_id=record.document_id,
+            request_id=request_id,
+        )
+        storage_service.save_extracted_text(record.document_id, extracted_text)
+        storage_service.update_document_metadata(
+            record.document_id,
+            DocumentStatusUpdateRequest(
+                status=DocumentStatusType.text_extracted,
+                retry_count=retry_count,
+                extracted_text_quality=quality,
+            ),
+        )
+
+    result = contract_extract_service.extract_contract_fields(
+        extracted_text,
+        document_id=record.document_id,
+    )
+    storage_service.save_contract_extraction(result)
+    return result
 
 
 @router.post("/documents/upload", response_model=DocumentUploadResponse)
@@ -162,6 +226,42 @@ async def get_document_metadata(document_id: str):
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
     return record
+
+
+@router.get("/documents/{document_id}/extracted-fields", response_model=ExtractedContractInfo)
+async def get_document_extracted_fields(request: Request, document_id: str):
+    record = storage_service.get_document_metadata(document_id)
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
+
+    request_id = getattr(request.state, "request_id", get_request_id())
+    return await _build_contract_extraction(
+        record,
+        request_id=request_id,
+        use_cached_result=True,
+    )
+
+
+@router.post("/documents/{document_id}/extract-fields", response_model=ExtractedContractInfo)
+async def extract_document_fields(request: Request, document_id: str):
+    record = storage_service.get_document_metadata(document_id)
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
+
+    request_id = getattr(request.state, "request_id", get_request_id())
+    result = await _build_contract_extraction(
+        record,
+        request_id=request_id,
+        use_cached_result=False,
+    )
+    log_event(
+        "document_contract_fields_extracted",
+        event="document_contract_fields_extracted",
+        request_id=request_id,
+        document_id=document_id,
+        missing_fields=result.missing_fields,
+    )
+    return result
 
 
 @router.patch("/documents/{document_id}/metadata", response_model=DocumentMetadataRecord)
