@@ -1,6 +1,4 @@
-import json
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import desc
@@ -9,7 +7,6 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db.session import SessionLocal
 from app.models.document_metadata_model import DocumentMetadataModel
-from app.schemas.contract_extract_schema import ExtractedContractInfo
 from app.schemas.document_schema import (
     DocumentMetadataListResponse,
     DocumentMetadataRecord,
@@ -323,54 +320,3 @@ def build_document_sync_payload(document_id: str) -> Optional[DocumentMetadataSy
         storage_target="postgresql",
         payload=build_dynamodb_item(record),
     )
-
-
-def _safe_document_id(document_id: str) -> str:
-    safe_id = "".join(
-        char if char.isalnum() or char in {"-", "_"} else "_"
-        for char in document_id
-    ).strip("_")
-    if not safe_id:
-        raise ValueError("document_id is required")
-    return safe_id
-
-
-def _artifact_dir() -> Path:
-    artifact_dir = settings.upload_dir / "derived"
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-    return artifact_dir
-
-
-def _artifact_path(document_id: str, suffix: str) -> Path:
-    return _artifact_dir() / f"{_safe_document_id(document_id)}{suffix}"
-
-
-def save_extracted_text(document_id: str, extracted_text: str) -> Path:
-    path = _artifact_path(document_id, ".ocr.txt")
-    path.write_text(extracted_text or "", encoding="utf-8")
-    return path
-
-
-def get_extracted_text(document_id: str) -> Optional[str]:
-    path = _artifact_path(document_id, ".ocr.txt")
-    if not path.exists():
-        return None
-    return path.read_text(encoding="utf-8")
-
-
-def save_contract_extraction(result: ExtractedContractInfo) -> Path:
-    if result.document_id is None:
-        raise ValueError("document_id is required to store extracted contract fields")
-    path = _artifact_path(result.document_id, ".contract_fields.json")
-    path.write_text(
-        json.dumps(result.model_dump(mode="json"), ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    return path
-
-
-def get_contract_extraction(document_id: str) -> Optional[ExtractedContractInfo]:
-    path = _artifact_path(document_id, ".contract_fields.json")
-    if not path.exists():
-        return None
-    return ExtractedContractInfo(**json.loads(path.read_text(encoding="utf-8")))
