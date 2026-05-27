@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db.session import SessionLocal
 from app.models.document_metadata_model import DocumentMetadataModel
+from app.schemas.contract_extract_schema import ExtractedContractInfo
 from app.schemas.document_schema import (
     DocumentMetadataListResponse,
     DocumentMetadataRecord,
@@ -16,6 +17,27 @@ from app.schemas.document_schema import (
 )
 
 settings = get_settings()
+
+
+_EXTRACTED_TEXT_CACHE: dict[str, str] = {}
+_CONTRACT_EXTRACT_CACHE: dict[str, ExtractedContractInfo] = {}
+
+
+def save_extracted_text(document_id: str, extracted_text: str) -> None:
+    _EXTRACTED_TEXT_CACHE[document_id] = extracted_text
+
+
+def get_extracted_text(document_id: str) -> Optional[str]:
+    return _EXTRACTED_TEXT_CACHE.get(document_id)
+
+
+def save_contract_extracted_fields(document_id: str, payload: ExtractedContractInfo) -> None:
+    _CONTRACT_EXTRACT_CACHE[document_id] = payload
+
+
+def get_contract_extracted_fields(document_id: str) -> Optional[ExtractedContractInfo]:
+    return _CONTRACT_EXTRACT_CACHE.get(document_id)
+
 
 
 def _db_record_to_schema(row: DocumentMetadataModel) -> DocumentMetadataRecord:

@@ -123,6 +123,7 @@ async def retry_document_ocr(request: Request, document_id: str):
         request_id=request_id,
     )
 
+    storage_service.save_extracted_text(document_id, extracted_text)
     storage_service.update_document_metadata(
         document_id,
         DocumentStatusUpdateRequest(

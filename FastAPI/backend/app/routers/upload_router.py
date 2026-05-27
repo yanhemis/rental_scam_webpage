@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from app.config import Settings
 from app.core.logging_config import get_request_id, log_event
 from app.dependencies import get_app_settings
+from app.schemas.contract_extract_schema import ExtractedContractInfo
 from app.schemas.document_schema import (
     DocumentMetadataRecord,
     DocumentMetadataSyncResponse,
@@ -14,7 +15,7 @@ from app.schemas.document_schema import (
     DocumentStatusUpdateRequest,
     DocumentUploadResponse,
 )
-from app.services import extract_service, file_service, metrics_service, storage_service
+from app.services import contract_extract_service, extract_service, file_service, metrics_service, storage_service
 from typing import Optional
 
 router = APIRouter(tags=["documents"])
@@ -89,6 +90,8 @@ async def _handle_upload(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exc),
         ) from exc
+
+    storage_service.save_extracted_text(document_id, extracted_text)
 
     metadata = storage_service.update_document_metadata(
         document_id,
@@ -189,3 +192,29 @@ async def get_document_sync_payload(document_id: str):
     if payload is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
     return payload
+
+@router.get("/documents/{document_id}/extracted-fields", response_model=ExtractedContractInfo)
+async def get_document_extracted_fields(document_id: str):
+    record = storage_service.get_document_metadata(document_id)
+    if record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
+
+    cached = storage_service.get_contract_extracted_fields(document_id)
+    if cached is not None:
+        return cached
+
+    extracted_text = storage_service.get_extracted_text(document_id)
+    if not extracted_text:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="OCR 텍스트를 찾을 수 없어 필드 추출을 수행할 수 없습니다.",
+        )
+
+    extracted = contract_extract_service.extract_contract_fields(extracted_text, document_id=document_id)
+    storage_service.save_contract_extracted_fields(document_id, extracted)
+    return extracted
+
+
+@router.post("/documents/{document_id}/extract-fields", response_model=ExtractedContractInfo)
+async def extract_document_fields(document_id: str):
+    return await get_document_extracted_fields(document_id)
