@@ -7,6 +7,8 @@ from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 from app.config import get_settings
 from app.schemas.extraction_schema import ExtractedTextLocation, ExtractionLocationSource
 
+_easyocr_reader = None
+
 
 def _resolve_tesseract_cmd() -> str | None:
     settings = get_settings()
@@ -168,6 +170,88 @@ def _extract_locations_from_tesseract_data(
     return locations
 
 
+def _get_easyocr_reader():
+    global _easyocr_reader
+    if _easyocr_reader is None:
+        try:
+            import easyocr
+        except ImportError as exc:
+            raise RuntimeError(
+                "EasyOCR is not installed. Install backend/requirements-ocr-local.txt "
+                "or set LOCAL_OCR_PROVIDER=tesseract."
+            ) from exc
+        _easyocr_reader = easyocr.Reader(["ko", "en"], gpu=False, verbose=False)
+    return _easyocr_reader
+
+
+def _extract_locations_from_easyocr_results(
+    results: list,
+    *,
+    page_number: int,
+    span_prefix: str,
+    source: ExtractionLocationSource,
+    coordinate_system: str,
+) -> list[ExtractedTextLocation]:
+    locations: list[ExtractedTextLocation] = []
+    for index, item in enumerate(results):
+        if len(item) < 2:
+            continue
+
+        points = item[0]
+        word = str(item[1] or "").strip()
+        if not word or not points:
+            continue
+
+        try:
+            confidence = float(item[2]) if len(item) >= 3 else None
+        except (TypeError, ValueError):
+            confidence = None
+
+        xs = [float(point[0]) for point in points]
+        ys = [float(point[1]) for point in points]
+        locations.append(
+            ExtractedTextLocation(
+                span_id=f"{span_prefix}-p{page_number}-e{index}",
+                text=word,
+                page_number=page_number,
+                bbox=[min(xs), min(ys), max(xs), max(ys)],
+                confidence=confidence,
+                source=source,
+                coordinate_system=coordinate_system,
+            )
+        )
+
+    return locations
+
+
+def _ocr_easyocr_image(
+    image: Image.Image,
+    *,
+    page_number: int,
+    span_prefix: str,
+    coordinate_system: str,
+) -> tuple[str, list[ExtractedTextLocation]]:
+    try:
+        import numpy as np
+    except ImportError as exc:
+        raise RuntimeError(
+            "NumPy is required for EasyOCR. Install backend/requirements-ocr-local.txt."
+        ) from exc
+
+    reader = _get_easyocr_reader()
+    normalized = ImageOps.exif_transpose(image).convert("RGB")
+    results = reader.readtext(np.array(normalized), detail=1, paragraph=False)
+    locations = _extract_locations_from_easyocr_results(
+        results,
+        page_number=page_number,
+        span_prefix=span_prefix,
+        source=ExtractionLocationSource.image_ocr,
+        coordinate_system=coordinate_system,
+    )
+    text = " ".join(location.text for location in locations)
+    return text, locations
+
+
 def _ocr_data_candidates(
     image: Image.Image,
     lang: str,
@@ -238,10 +322,19 @@ def _ensure_tesseract_cmd() -> None:
 def extract_text_from_image(file_path: str | Path) -> str:
     image_path = Path(file_path)
     settings = get_settings()
-    _ensure_tesseract_cmd()
 
     try:
         with Image.open(image_path) as image:
+            if settings.local_ocr_provider == "easyocr":
+                text, _locations = _ocr_easyocr_image(
+                    image,
+                    page_number=1,
+                    span_prefix="img",
+                    coordinate_system="easyocr_image_pixels",
+                )
+                return text
+
+            _ensure_tesseract_cmd()
             return _ocr_candidates(image, settings.tesseract_lang)
     except UnidentifiedImageError as exc:
         raise ValueError("Unsupported image format.") from exc
@@ -256,10 +349,18 @@ def extract_text_locations_from_image(
 ) -> tuple[str, list[ExtractedTextLocation]]:
     image_path = Path(file_path)
     settings = get_settings()
-    _ensure_tesseract_cmd()
 
     try:
         with Image.open(image_path) as image:
+            if settings.local_ocr_provider == "easyocr":
+                return _ocr_easyocr_image(
+                    image,
+                    page_number=1,
+                    span_prefix="img",
+                    coordinate_system="easyocr_image_pixels",
+                )
+
+            _ensure_tesseract_cmd()
             best_text, data, coordinate_system = _ocr_data_candidates(
                 image,
                 settings.tesseract_lang,
@@ -289,6 +390,15 @@ def extract_text_locations_from_pil_image(
     coordinate_system: str = "normalized_image_pixels",
 ) -> tuple[str, list[ExtractedTextLocation]]:
     settings = get_settings()
+
+    if settings.local_ocr_provider == "easyocr":
+        return _ocr_easyocr_image(
+            image,
+            page_number=page_number,
+            span_prefix=span_prefix,
+            coordinate_system=f"easyocr_{coordinate_system}",
+        )
+
     _ensure_tesseract_cmd()
 
     try:

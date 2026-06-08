@@ -115,3 +115,14 @@ $env:PRIVACY_TEMPLATE_REDACTION_ENABLED = "true"
 - `.pytest_cache/`
 - 로컬 DB 파일
 - 샘플 계약서 원본 또는 OCR 결과 JSON
+
+## 2026-06-09 로컬 OCR 후보 비교
+
+- 무료 로컬 OCR 후보로 EasyOCR을 설치하고 실제 4페이지 스캔 PDF 중 2, 3페이지를 비교했습니다.
+- PaddleOCR 패키지는 설치됐지만 현재 Python 3.14 환경에서 `paddlepaddle` wheel이 없어 실행 비교가 불가능했습니다.
+- EasyOCR 결과:
+  - page 2: 약 10.8초, 160 boxes, 2238 chars, Hangul ratio 0.828
+  - page 3: 약 11.1초, 182 boxes, 2258 chars, Hangul ratio 0.802
+- 기존 Tesseract fallback은 같은 조건에서 페이지당 약 42초 수준이었고, 스캔/수기 이미지에서는 한글 인식 품질도 더 불안정했습니다.
+- `LOCAL_OCR_PROVIDER=easyocr` 설정을 추가해 로컬 테스트 또는 MVP 발표 환경에서 EasyOCR provider를 선택할 수 있게 했습니다.
+- EasyOCR은 여전히 금액, 날짜, 일부 수기 문자는 보정이 필요하므로 핵심 필드 추출 단계에서는 OCR 원문을 그대로 믿기보다 후보값 + 사용자 확인 UI로 처리하는 것이 좋습니다.
