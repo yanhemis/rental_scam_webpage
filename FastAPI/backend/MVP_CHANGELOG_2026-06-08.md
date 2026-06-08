@@ -51,9 +51,11 @@
   - `ReportDifference.locations`와 `special_term_explanation`을 추가했습니다.
   - `SafetyChecklistItem`, `SafetyChecklistGroup`, `ReportResponse.safety_checklist`를 추가했습니다.
   - `RiskScoreBreakdown`과 `ReportResponse.risk_score`를 추가했습니다.
+  - `ChecklistExternalAction`을 추가해 체크리스트 항목별 외부 확인 페이지 이동 버튼을 만들 수 있게 했습니다.
 - `app/services/safety_checklist_service.py`
   - 계약 전, 계약 당일, 계약 후 단계별 체크리스트 틀을 제공합니다.
   - 등기부등본, 건축물대장, 보증보험, 중개사 조회 등 정부/공식 링크를 나중에 UI 박스에 붙이기 쉽게 `official_url`, `action_label`, `priority`, `stage`를 포함합니다.
+  - `external_action.label`, `external_action.url`, `external_action.completion_hint`를 내려주므로 프론트는 사용자가 원할 때 공식 확인 페이지로 이동시키고, 확인 후 체크 완료 처리를 할 수 있습니다.
 - `app/services/risk_score_service.py`
   - MVP 위험 점수 산식을 분리했습니다.
   - 기본 위험 점수 20점에 특약 위험도를 더하고, 완료된 체크리스트의 `risk_reduction_points`를 차감합니다.

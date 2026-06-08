@@ -1,4 +1,8 @@
-from app.schemas.report_schema import SafetyChecklistGroup, SafetyChecklistItem
+from app.schemas.report_schema import (
+    ChecklistExternalAction,
+    SafetyChecklistGroup,
+    SafetyChecklistItem,
+)
 
 
 def build_default_safety_checklist(
@@ -15,9 +19,17 @@ def build_default_safety_checklist(
         priority: str,
         stage: str,
         risk_reduction_points: int,
-        official_url: str | None = None,
         action_label: str | None = None,
+        official_url: str | None = None,
+        completion_hint: str | None = None,
     ) -> SafetyChecklistItem:
+        external_action = None
+        if official_url and action_label:
+            external_action = ChecklistExternalAction(
+                label=action_label,
+                url=official_url,
+                completion_hint=completion_hint,
+            )
         return SafetyChecklistItem(
             id=id,
             label=label,
@@ -25,6 +37,7 @@ def build_default_safety_checklist(
             why_it_matters=why_it_matters,
             official_url=official_url,
             action_label=action_label,
+            external_action=external_action,
             priority=priority,
             stage=stage,
             status="completed" if id in completed_check_ids else "unchecked",
@@ -42,7 +55,8 @@ def build_default_safety_checklist(
                     description="임대인과 등기상 소유자가 일치하는지 확인합니다.",
                     why_it_matters="소유자가 아닌 사람과 계약하면 보증금 회수 위험이 커집니다.",
                     official_url="https://www.iros.go.kr",
-                    action_label="인터넷등기소 열기",
+                    action_label="인터넷등기소에서 확인",
+                    completion_hint="등기부등본 갑구의 소유자와 계약서 임대인 이름이 일치하면 완료 처리합니다.",
                     priority="high",
                     stage="before_contract",
                     risk_reduction_points=6,
@@ -52,8 +66,9 @@ def build_default_safety_checklist(
                     label="건축물대장 확인",
                     description="주소, 용도, 위반건축물 여부를 확인합니다.",
                     why_it_matters="위반건축물이거나 용도 불일치가 있으면 보증보험 가입과 권리 보호에 문제가 생길 수 있습니다.",
-                    official_url="https://www.gov.kr",
-                    action_label="정부24 열기",
+                    official_url="https://m.gov.kr/mw/AA020InfoCappView.do?CappBizCD=15000000098&HighCtgCD=A09005&tp_seq=01",
+                    action_label="정부24에서 확인",
+                    completion_hint="건축물대장의 주소와 계약서 주소가 일치하고 위반건축물 표시가 없으면 완료 처리합니다.",
                     priority="high",
                     stage="before_contract",
                     risk_reduction_points=5,
@@ -64,7 +79,8 @@ def build_default_safety_checklist(
                     description="보증금이 주변 시세 대비 과도하지 않은지 확인합니다.",
                     why_it_matters="시세보다 높은 보증금은 깡통전세 위험 신호가 될 수 있습니다.",
                     official_url="https://rt.molit.go.kr",
-                    action_label="실거래가 공개시스템 열기",
+                    action_label="실거래가 공개시스템에서 확인",
+                    completion_hint="같은 지역과 유사 면적의 전월세 거래가를 확인한 뒤 완료 처리합니다.",
                     priority="medium",
                     stage="before_contract",
                     risk_reduction_points=4,
@@ -74,8 +90,9 @@ def build_default_safety_checklist(
                     label="전세보증금 반환보증 확인",
                     description="HUG 등에서 보증보험 가입 가능 여부를 확인합니다.",
                     why_it_matters="보증보험 가입 가능 여부는 보증금 회수 가능성과 직접 연결됩니다.",
-                    official_url="https://www.khug.or.kr",
-                    action_label="HUG 열기",
+                    official_url="https://www.khug.or.kr/hug/web/ig/dr/igdr000001.jsp",
+                    action_label="HUG에서 확인",
+                    completion_hint="보증 대상 주택, 보증금 한도, 선순위채권 조건을 확인한 뒤 완료 처리합니다.",
                     priority="high",
                     stage="before_contract",
                     risk_reduction_points=7,
@@ -110,7 +127,8 @@ def build_default_safety_checklist(
                     description="공인중개사 등록번호와 사무소 정보를 확인합니다.",
                     why_it_matters="등록되지 않은 중개 행위는 사고 발생 때 보호 장치가 약할 수 있습니다.",
                     official_url="https://www.nsdi.go.kr",
-                    action_label="국가공간정보포털 열기",
+                    action_label="국가공간정보포털에서 확인",
+                    completion_hint="중개사무소명, 등록번호, 대표자 정보를 계약서와 대조한 뒤 완료 처리합니다.",
                     priority="medium",
                     stage="contract_day",
                     risk_reduction_points=3,
@@ -126,8 +144,9 @@ def build_default_safety_checklist(
                     label="전입신고",
                     description="입주 즉시 전입신고를 진행합니다.",
                     why_it_matters="대항력 확보의 기본 요건입니다.",
-                    official_url="https://www.gov.kr",
-                    action_label="정부24 열기",
+                    official_url="https://www.gov.kr/mw/AA020InfoCappView.do?CappBizCD=13100000016&HighCtgCD=A01010",
+                    action_label="정부24에서 전입신고",
+                    completion_hint="전입신고 신청 또는 처리 완료 화면을 확인한 뒤 완료 처리합니다.",
                     priority="high",
                     stage="after_contract",
                     risk_reduction_points=6,
@@ -138,7 +157,8 @@ def build_default_safety_checklist(
                     description="계약서에 확정일자를 받습니다.",
                     why_it_matters="우선변제권 확보에 필요합니다.",
                     official_url="https://www.gov.kr",
-                    action_label="정부24 열기",
+                    action_label="정부24에서 확인",
+                    completion_hint="확정일자 부여 또는 임대차계약신고 완료 여부를 확인한 뒤 완료 처리합니다.",
                     priority="high",
                     stage="after_contract",
                     risk_reduction_points=6,

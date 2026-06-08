@@ -3,6 +3,14 @@ from pydantic import BaseModel, Field
 from app.schemas.extraction_schema import ExtractedTextLocation
 
 
+class ChecklistExternalAction(BaseModel):
+    label: str
+    url: str
+    type: str = "external_link"
+    opens_in_new_window: bool = True
+    completion_hint: str | None = None
+
+
 class SafetyChecklistItem(BaseModel):
     id: str
     label: str
@@ -10,6 +18,7 @@ class SafetyChecklistItem(BaseModel):
     why_it_matters: str
     official_url: str | None = None
     action_label: str | None = None
+    external_action: ChecklistExternalAction | None = None
     priority: str = "medium"
     stage: str = "before_contract"
     status: str = "unchecked"
