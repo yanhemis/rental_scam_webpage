@@ -131,7 +131,8 @@ h2 {
 }
 
 .right-column {
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-self: start;
+  grid-template-rows: auto;
 }
 
 .panel {
@@ -148,8 +149,7 @@ h2 {
   min-height: 0;
 }
 
-.document-panel,
-.checklist-panel {
+.document-panel {
   display: flex;
   flex-direction: column;
 }
@@ -473,9 +473,7 @@ h2 {
 .checklist-groups {
   display: grid;
   gap: 16px;
-  flex: 1;
-  min-height: 0;
-  max-height: none;
+  max-height: 420px;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 6px;
