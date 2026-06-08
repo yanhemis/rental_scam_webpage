@@ -451,6 +451,28 @@ h2 {
 .checklist-groups {
   display: grid;
   gap: 16px;
+  max-height: 560px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+}
+
+.checklist-groups::-webkit-scrollbar {
+  width: 8px;
+}
+
+.checklist-groups::-webkit-scrollbar-track {
+  background: #eef3f9;
+  border-radius: 999px;
+}
+
+.checklist-groups::-webkit-scrollbar-thumb {
+  background: #b9c7db;
+  border-radius: 999px;
+}
+
+.checklist-groups::-webkit-scrollbar-thumb:hover {
+  background: #8fa1bc;
 }
 
 .checklist-group h3 {
@@ -575,6 +597,10 @@ h2 {
 
   .document-viewer {
     min-height: 440px;
+  }
+
+  .checklist-groups {
+    max-height: 420px;
   }
 
   .doc-row {
