@@ -116,13 +116,22 @@ h2 {
   display: grid;
   grid-template-columns: minmax(260px, 410px) minmax(420px, 1fr) minmax(280px, 320px);
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .left-column,
 .right-column {
   display: grid;
   gap: 22px;
+  height: 100%;
+}
+
+.left-column {
+  grid-template-rows: auto 1fr;
+}
+
+.right-column {
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .panel {
@@ -131,6 +140,18 @@ h2 {
   border-radius: 8px;
   box-shadow: var(--shadow);
   padding: 20px;
+}
+
+.left-column .panel,
+.right-column .panel,
+.document-panel {
+  min-height: 0;
+}
+
+.document-panel,
+.checklist-panel {
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-heading {
@@ -307,6 +328,7 @@ h2 {
 
 .document-viewer {
   position: relative;
+  flex: 1;
   min-height: 620px;
   padding: 20px;
   border: 1px solid var(--line);
@@ -451,7 +473,9 @@ h2 {
 .checklist-groups {
   display: grid;
   gap: 16px;
-  max-height: 560px;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 6px;
@@ -568,6 +592,7 @@ h2 {
 @media (max-width: 1120px) {
   .workspace {
     grid-template-columns: 1fr 1fr;
+    align-items: start;
   }
 
   .document-panel {
@@ -585,6 +610,17 @@ h2 {
   .topbar,
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .left-column,
+  .right-column {
+    height: auto;
+    grid-template-rows: none;
+  }
+
+  .document-panel,
+  .checklist-panel {
+    display: block;
   }
 
   .score-summary {
