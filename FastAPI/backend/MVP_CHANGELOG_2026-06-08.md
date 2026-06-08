@@ -50,9 +50,15 @@
 - `app/schemas/report_schema.py`
   - `ReportDifference.locations`와 `special_term_explanation`을 추가했습니다.
   - `SafetyChecklistItem`, `SafetyChecklistGroup`, `ReportResponse.safety_checklist`를 추가했습니다.
+  - `RiskScoreBreakdown`과 `ReportResponse.risk_score`를 추가했습니다.
 - `app/services/safety_checklist_service.py`
   - 계약 전, 계약 당일, 계약 후 단계별 체크리스트 틀을 제공합니다.
   - 등기부등본, 건축물대장, 보증보험, 중개사 조회 등 정부/공식 링크를 나중에 UI 박스에 붙이기 쉽게 `official_url`, `action_label`, `priority`, `stage`를 포함합니다.
+- `app/services/risk_score_service.py`
+  - MVP 위험 점수 산식을 분리했습니다.
+  - 기본 위험 점수 20점에 특약 위험도를 더하고, 완료된 체크리스트의 `risk_reduction_points`를 차감합니다.
+  - 예시 mock report 기준 기본 점수는 `20 + high(8) + medium(4) = 32점`입니다.
+  - `GET /reports/{document_id}?completed_checks=registry_owner_check&completed_checks=fixed_date_check`처럼 완료 체크 항목을 넘기면 점수가 낮아집니다.
 - `app/services/analysis_service.py`
   - MVP용 mock 분석 응답에 위험 문구 설명, 권장 조치, 체크리스트를 연결했습니다.
 
@@ -104,4 +110,3 @@ $env:PRIVACY_TEMPLATE_REDACTION_ENABLED = "true"
 - `.pytest_cache/`
 - 로컬 DB 파일
 - 샘플 계약서 원본 또는 OCR 결과 JSON
-

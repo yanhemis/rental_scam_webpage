@@ -9,6 +9,7 @@ from app.schemas.extraction_schema import ExtractedTextLocation
 from app.schemas.report_schema import ReportDifference, ReportResponse
 from app.services import metrics_service, storage_service
 from app.services.extraction_cache_service import get_cached_extraction
+from app.services.risk_score_service import calculate_risk_score, risk_delta_for_level
 from app.services.safety_checklist_service import build_default_safety_checklist
 
 settings = get_settings()
@@ -57,7 +58,7 @@ def _generate_mock_analysis(document_id: str) -> AnalysisResponse:
             ClauseAnalysis(
                 clause_title="보증금 반환 시점",
                 risk_level="medium",
-                summary="보증금 반환 시점이 모호하여 분쟁 위험이 있습니다.",
+                summary="보증금 반환 시점이 모호해 분쟁 위험이 있습니다.",
                 legal_basis="임대차 종료와 동시이행 관계 검토 필요",
                 diff_excerpt="임대인의 사정에 따라 반환일을 조정할 수 있다",
             ),
@@ -144,44 +145,61 @@ async def run_analysis_with_retry(
     raise RuntimeError("Analysis did not complete.")
 
 
-def create_mock_report(document_id: str) -> ReportResponse:
+def create_mock_report(
+    document_id: str,
+    completed_check_ids: set[str] | None = None,
+) -> ReportResponse:
     repair_text = "퇴거 시 일체의 수선비를 임차인이 부담한다"
     deposit_text = "임대인의 사정에 따라 반환일을 조정할 수 있다"
+
+    differences = [
+        ReportDifference(
+            category="특약",
+            original_text=repair_text,
+            standard_text="통상 사용으로 인한 마모를 제외한 수선 범위를 명확히 정한다",
+            risk_level="high",
+            highlight_color="red",
+            locations=_find_locations_for_text(document_id, repair_text),
+            special_term_explanation=(
+                "원상복구 특약은 수선비 부담 범위가 과도하면 임차인에게 예상 밖의 비용을 "
+                "전가할 수 있으므로 부담 주체와 한도를 명확히 확인해야 합니다."
+            ),
+            risk_score_delta=risk_delta_for_level("high"),
+        ),
+        ReportDifference(
+            category="보증금 반환",
+            original_text=deposit_text,
+            standard_text="임대차 종료와 동시에 보증금을 반환한다",
+            risk_level="medium",
+            highlight_color="orange",
+            locations=_find_locations_for_text(document_id, deposit_text),
+            special_term_explanation=(
+                "보증금 반환 시점이 모호하면 퇴거 후 반환 지연이나 공제 분쟁이 생길 수 있으므로 "
+                "반환일과 공제 조건을 계약서에 구체적으로 적어야 합니다."
+            ),
+            risk_score_delta=risk_delta_for_level("medium"),
+        ),
+    ]
+    safety_checklist = build_default_safety_checklist(completed_check_ids)
+    risk_score = calculate_risk_score(
+        differences=differences,
+        safety_checklist=safety_checklist,
+    )
 
     return ReportResponse(
         document_id=document_id,
         report_id=f"report-{document_id}",
         summary="계약서 특약과 보증금 반환 조건에서 표준 계약서와 다른 위험 문구가 확인되었습니다.",
-        risk_overview="고위험 1건, 중위험 1건이 탐지되었습니다.",
-        differences=[
-            ReportDifference(
-                category="특약",
-                original_text=repair_text,
-                standard_text="통상 사용으로 인한 마모를 제외한 수선 범위를 명확히 정한다",
-                risk_level="high",
-                highlight_color="red",
-                locations=_find_locations_for_text(document_id, repair_text),
-                special_term_explanation=(
-                    "원상복구와 수선비 부담 범위가 과도하면 임차인에게 예상 밖의 비용이 "
-                    "전가될 수 있으므로 부담 주체와 한도를 명확히 확인해야 합니다."
-                ),
-            ),
-            ReportDifference(
-                category="보증금 반환",
-                original_text=deposit_text,
-                standard_text="임대차 종료와 동시에 보증금을 반환한다",
-                risk_level="medium",
-                highlight_color="orange",
-                locations=_find_locations_for_text(document_id, deposit_text),
-                special_term_explanation=(
-                    "보증금 반환 시점이 모호하면 퇴거 후 반환 지연이나 공제 분쟁이 생길 수 "
-                    "있으므로 반환일과 공제 조건을 계약서에 구체적으로 적어야 합니다."
-                ),
-            ),
-        ],
+        risk_overview=(
+            f"기본 위험 {risk_score.base_score}점에 특약 위험 {risk_score.special_terms_delta}점이 더해졌고, "
+            f"완료한 체크리스트로 {risk_score.checklist_reduction}점이 차감되었습니다."
+        ),
+        risk_score=risk_score,
+        differences=differences,
         recommended_actions=[
             "특약의 수선비 부담 범위와 한도를 구체적으로 수정하세요.",
-            "보증금 반환일을 계약 종료일 또는 명도일과 명확히 연결해 적으세요.",
+            "보증금 반환일을 계약 종료일 또는 명도일과 명확하게 연결하세요.",
+            "등기부등본, 건축물대장, 보증보험 가능 여부를 확인해 위험 점수를 낮추세요.",
         ],
-        safety_checklist=build_default_safety_checklist(),
+        safety_checklist=safety_checklist,
     )
