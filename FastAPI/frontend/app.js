@@ -508,7 +508,7 @@ function renderSpecialTerms() {
 
 function renderDocumentContent() {
   const blocks = Array.from(elements.documentViewer.querySelectorAll(".doc-cell, .doc-wide"));
-  const snippets = buildDocumentSnippets();
+  const { snippets, qualityLabel } = buildDocumentSnippets();
   blocks.forEach((block, index) => {
     const snippet = snippets[index];
     block.classList.toggle("has-ocr-text", Boolean(snippet));
@@ -523,35 +523,56 @@ function renderDocumentContent() {
     state.uploadResult?.redactions?.length ||
     0;
   toolbar.textContent = state.uploadResult
-    ? `OCR ${locationCount}개 · 마스킹 ${redactionCount}개`
+    ? `OCR ${locationCount}개 · 마스킹 ${redactionCount}개 · ${qualityLabel}`
     : "업로드 후 OCR 결과 표시";
 }
 
 function buildDocumentSnippets() {
   const locations = state.uploadResult?.text_locations || [];
   const locationSnippets = locations
+    .filter((item) => item.confidence == null || item.confidence >= 0.35)
     .map((item) => normalizeSnippet(item.text))
-    .filter((text) => text.length >= 4 && !text.includes("[REDACTED]"));
+    .filter(isReadableContractSnippet);
 
   if (locationSnippets.length > 0) {
-    return uniqueSnippets(locationSnippets).slice(0, 7);
+    return {
+      snippets: uniqueSnippets(locationSnippets).slice(0, 7),
+      qualityLabel: "문장 인식",
+    };
   }
 
   const fullText = state.uploadResult?.full_text || "";
   if (fullText) {
-    return uniqueSnippets(
+    const textSnippets = uniqueSnippets(
       fullText
         .split(/\n|(?<=다\.)|(?<=요\.)/)
         .map(normalizeSnippet)
-        .filter((text) => text.length >= 10),
+        .filter(isReadableContractSnippet),
     ).slice(0, 7);
+    if (textSnippets.length > 0) {
+      return {
+        snippets: textSnippets,
+        qualityLabel: "문장 인식",
+      };
+    }
+    return {
+      snippets: [
+        "한글 문장 인식률이 낮아 원문 미리보기를 숨겼습니다.",
+        "촬영 각도, 그림자, 손글씨 품질에 따라 OCR 결과가 흔들릴 수 있습니다.",
+        "핵심 정보는 확인 필요로 표시하고 체크리스트를 통해 보완 확인을 진행하세요.",
+      ],
+      qualityLabel: "품질 낮음",
+    };
   }
 
-  return [
-    "계약서 업로드 후 OCR로 추출된 문장이 여기에 표시됩니다.",
-    "핵심 정보와 개인정보 마스킹 박스가 계약서 보기 영역에 연결됩니다.",
-    "위험 특약은 노란색 또는 빨간색 박스로 표시됩니다.",
-  ];
+  return {
+    snippets: [
+      "계약서 업로드 후 OCR로 추출된 문장이 여기에 표시됩니다.",
+      "핵심 정보와 개인정보 마스킹 박스가 계약서 보기 영역에 연결됩니다.",
+      "위험 특약은 노란색 또는 빨간색 박스로 표시됩니다.",
+    ],
+    qualityLabel: "대기",
+  };
 }
 
 function normalizeSnippet(value) {
@@ -570,6 +591,22 @@ function uniqueSnippets(values) {
     seen.add(key);
     return true;
   });
+}
+
+function isReadableContractSnippet(value) {
+  const text = normalizeSnippet(value);
+  if (text.length < 8) return false;
+  if (/^[A-Za-z0-9.,:;'"()[\]\s-]+$/.test(text)) return false;
+
+  const hangulCount = (text.match(/[가-힣]/g) || []).length;
+  const digitCount = (text.match(/\d/g) || []).length;
+  const usefulCount = hangulCount + digitCount;
+  const compactLength = text.replace(/\s/g, "").length || 1;
+  const usefulRatio = usefulCount / compactLength;
+
+  if (hangulCount >= 4 && usefulRatio >= 0.25) return true;
+  if (digitCount >= 6 && /원|보증금|계약|기간|주소|월|일/.test(text)) return true;
+  return false;
 }
 
 function renderDocumentOverlays() {
