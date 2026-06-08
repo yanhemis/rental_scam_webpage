@@ -44,3 +44,5 @@ http://127.0.0.1:5173
 - 선순위 권리 확인 상태
 
 값이 비어 있는 표준 양식이거나 OCR에서 확정하기 어려운 경우 `확인 필요`로 표시합니다.
+
+계약서 보기 영역은 `DocumentUploadResponse.text_locations`, `redactions`, `redaction_metrics`를 사용해 OCR 텍스트 조각, 마스킹 개수, 위험 문구 박스를 함께 표시합니다.

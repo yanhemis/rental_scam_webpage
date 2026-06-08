@@ -338,11 +338,18 @@ h2 {
 }
 
 .doc-toolbar {
-  width: 190px;
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  min-width: 190px;
   height: 32px;
   margin-bottom: 16px;
+  padding: 0 12px;
   border-radius: 4px;
   background: #dbe3ee;
+  color: #41516a;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .doc-row {
@@ -355,14 +362,27 @@ h2 {
 .doc-cell,
 .doc-wide {
   min-height: 64px;
+  padding: 12px;
   border: 1px solid #d9e3ef;
   border-radius: 4px;
   background: #ffffff;
+  color: #5c687a;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: hidden;
 }
 
 .doc-wide {
   margin-bottom: 12px;
   min-height: 86px;
+}
+
+.doc-cell.has-ocr-text,
+.doc-wide.has-ocr-text {
+  color: #17233a;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.08), transparent 70%),
+    #ffffff;
 }
 
 .mapped {

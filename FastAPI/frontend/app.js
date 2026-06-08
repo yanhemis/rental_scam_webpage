@@ -281,6 +281,7 @@ function render() {
   renderChecklist();
   renderActions();
   renderSpecialTerms();
+  renderDocumentContent();
   renderDocumentOverlays();
 }
 
@@ -502,6 +503,72 @@ function renderSpecialTerms() {
       <p class="special-note">${escapeHtml(difference.special_term_explanation || difference.original_text || "")}</p>
     `;
     elements.specialTerms.append(card);
+  });
+}
+
+function renderDocumentContent() {
+  const blocks = Array.from(elements.documentViewer.querySelectorAll(".doc-cell, .doc-wide"));
+  const snippets = buildDocumentSnippets();
+  blocks.forEach((block, index) => {
+    const snippet = snippets[index];
+    block.classList.toggle("has-ocr-text", Boolean(snippet));
+    block.textContent = snippet || "";
+  });
+
+  const toolbar = elements.documentViewer.querySelector(".doc-toolbar");
+  if (!toolbar) return;
+  const locationCount = state.uploadResult?.text_locations?.length || 0;
+  const redactionCount =
+    state.uploadResult?.redaction_metrics?.total_redaction_count ||
+    state.uploadResult?.redactions?.length ||
+    0;
+  toolbar.textContent = state.uploadResult
+    ? `OCR ${locationCount}개 · 마스킹 ${redactionCount}개`
+    : "업로드 후 OCR 결과 표시";
+}
+
+function buildDocumentSnippets() {
+  const locations = state.uploadResult?.text_locations || [];
+  const locationSnippets = locations
+    .map((item) => normalizeSnippet(item.text))
+    .filter((text) => text.length >= 4 && !text.includes("[REDACTED]"));
+
+  if (locationSnippets.length > 0) {
+    return uniqueSnippets(locationSnippets).slice(0, 7);
+  }
+
+  const fullText = state.uploadResult?.full_text || "";
+  if (fullText) {
+    return uniqueSnippets(
+      fullText
+        .split(/\n|(?<=다\.)|(?<=요\.)/)
+        .map(normalizeSnippet)
+        .filter((text) => text.length >= 10),
+    ).slice(0, 7);
+  }
+
+  return [
+    "계약서 업로드 후 OCR로 추출된 문장이 여기에 표시됩니다.",
+    "핵심 정보와 개인정보 마스킹 박스가 계약서 보기 영역에 연결됩니다.",
+    "위험 특약은 노란색 또는 빨간색 박스로 표시됩니다.",
+  ];
+}
+
+function normalizeSnippet(value) {
+  return String(value || "")
+    .replace(/\[REDACTED\]/g, "마스킹")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 90);
+}
+
+function uniqueSnippets(values) {
+  const seen = new Set();
+  return values.filter((value) => {
+    const key = value.replace(/\s+/g, "");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 
