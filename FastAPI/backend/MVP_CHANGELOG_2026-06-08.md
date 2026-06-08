@@ -21,6 +21,9 @@
   - `PDF_OCR_RENDER_SCALE` 설정으로 렌더링 배율을 조절할 수 있습니다.
 - `app/services/image_service.py`
   - 이미지 OCR 결과에서 `page_number`, `bbox`, `confidence`, `source`를 포함한 위치 데이터를 생성합니다.
+  - 기울어짐, 스캔본, 모바일 촬영본 대응을 위해 threshold, 회전 후보, PSM 후보를 비교합니다.
+  - 후보 비교는 빠른 텍스트 OCR로 수행하고, 최종 선택 후보에 대해서만 bbox OCR을 수행해 속도를 줄였습니다.
+  - 후보 선택 점수는 한글, 숫자, 계약서 핵심 단어를 우선하도록 조정했습니다.
 - `app/schemas/extraction_schema.py`
   - `ExtractedTextLocation`, `RedactionTarget`, `RedactionMetrics`를 추가했습니다.
   - 프론트엔드는 `bbox`와 `page_number`를 사용해 PDF/이미지 위에 하이라이트나 마스킹 박스를 그릴 수 있습니다.

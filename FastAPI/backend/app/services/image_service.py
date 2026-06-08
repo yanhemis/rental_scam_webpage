@@ -55,10 +55,13 @@ def _normalize_image(image: Image.Image) -> Image.Image:
     denoised = grayscale.filter(ImageFilter.MedianFilter(size=3))
     auto_contrasted = ImageOps.autocontrast(denoised)
     width, height = auto_contrasted.size
+    upscale_factor = settings.ocr_upscale_factor
+    if max(width, height) >= 2200:
+        upscale_factor = 1.0
     resized = auto_contrasted.resize(
         (
-            max(1, int(width * settings.ocr_upscale_factor)),
-            max(1, int(height * settings.ocr_upscale_factor)),
+            max(1, int(width * upscale_factor)),
+            max(1, int(height * upscale_factor)),
         )
     )
     sharpened = resized.filter(ImageFilter.SHARPEN)
@@ -95,7 +98,7 @@ def _candidate_images(image: Image.Image) -> list[Image.Image]:
     rotated: list[Image.Image] = []
     for variant in variants:
         rotated.extend(_rotated_candidates(variant))
-    return rotated
+    return rotated[: settings.ocr_max_candidate_images]
 
 
 def _score_text(text: str) -> tuple[int, int]:
@@ -103,8 +106,104 @@ def _score_text(text: str) -> tuple[int, int]:
     if not stripped:
         return (0, 0)
 
-    useful_chars = sum(char.isalnum() or char.isspace() for char in stripped)
-    return (useful_chars, len(stripped))
+    hangul_count = sum("가" <= char <= "힣" for char in stripped)
+    digit_count = sum(char.isdigit() for char in stripped)
+    latin_count = sum(char.isascii() and char.isalpha() for char in stripped)
+    contract_terms = (
+        "계약",
+        "임대",
+        "임차",
+        "보증금",
+        "차임",
+        "전세",
+        "월세",
+        "확정일자",
+        "전입신고",
+        "특약",
+        "주소",
+        "소유자",
+    )
+    term_hits = sum(1 for term in contract_terms if term in stripped)
+    useful_score = hangul_count * 5 + digit_count * 2 + term_hits * 60
+    noise_penalty = latin_count if hangul_count < 5 else latin_count // 4
+    return (useful_score - noise_penalty, len(stripped))
+
+
+def _extract_locations_from_tesseract_data(
+    data: dict,
+    *,
+    page_number: int,
+    span_prefix: str,
+    source: ExtractionLocationSource,
+    coordinate_system: str,
+) -> list[ExtractedTextLocation]:
+    locations: list[ExtractedTextLocation] = []
+    for index, text in enumerate(data.get("text", [])):
+        word = str(text or "").strip()
+        if not word:
+            continue
+
+        try:
+            raw_confidence = float(data["conf"][index])
+            confidence = raw_confidence / 100 if raw_confidence >= 0 else None
+        except (KeyError, TypeError, ValueError):
+            confidence = None
+
+        left = float(data["left"][index])
+        top = float(data["top"][index])
+        width = float(data["width"][index])
+        height = float(data["height"][index])
+        locations.append(
+            ExtractedTextLocation(
+                span_id=f"{span_prefix}-p{page_number}-w{index}",
+                text=word,
+                page_number=page_number,
+                bbox=[left, top, left + width, top + height],
+                confidence=confidence,
+                source=source,
+                coordinate_system=coordinate_system,
+            )
+        )
+
+    return locations
+
+
+def _ocr_data_candidates(
+    image: Image.Image,
+    lang: str,
+) -> tuple[str, dict | None, str]:
+    settings = get_settings()
+    best_text = ""
+    best_candidate: Image.Image | None = None
+    best_psm_mode = settings.tesseract_psm_modes[0] if settings.tesseract_psm_modes else 6
+    best_coordinate_system = "normalized_image_pixels"
+    best_score = (0, 0)
+
+    for variant_index, candidate in enumerate(_candidate_images(image)):
+        for psm_mode in settings.tesseract_psm_modes:
+            text = pytesseract.image_to_string(
+                candidate,
+                lang=lang,
+                config=f"--oem 3 --psm {psm_mode}",
+            ).strip()
+            score = _score_text(text)
+            if score > best_score:
+                best_score = score
+                best_text = text
+                best_candidate = candidate
+                best_psm_mode = psm_mode
+                best_coordinate_system = f"ocr_candidate_{variant_index}_psm_{psm_mode}_pixels"
+
+    if best_candidate is None:
+        return best_text, None, best_coordinate_system
+
+    best_data = pytesseract.image_to_data(
+        best_candidate,
+        lang=lang,
+        config=f"--oem 3 --psm {best_psm_mode}",
+        output_type=pytesseract.Output.DICT,
+    )
+    return best_text, best_data, best_coordinate_system
 
 
 def _ocr_candidates(image: Image.Image, lang: str) -> str:
@@ -161,13 +260,9 @@ def extract_text_locations_from_image(
 
     try:
         with Image.open(image_path) as image:
-            best_text = _ocr_candidates(image, settings.tesseract_lang)
-            normalized = _normalize_image(image)
-            data = pytesseract.image_to_data(
-                normalized,
-                lang=settings.tesseract_lang,
-                config="--oem 3 --psm 6",
-                output_type=pytesseract.Output.DICT,
+            best_text, data, coordinate_system = _ocr_data_candidates(
+                image,
+                settings.tesseract_lang,
             )
     except UnidentifiedImageError as exc:
         raise ValueError("Unsupported image format.") from exc
@@ -176,34 +271,13 @@ def extract_text_locations_from_image(
     except pytesseract.TesseractError as exc:
         raise RuntimeError("Tesseract OCR failed while collecting text locations.") from exc
 
-    locations: list[ExtractedTextLocation] = []
-    for index, text in enumerate(data.get("text", [])):
-        word = str(text or "").strip()
-        if not word:
-            continue
-
-        try:
-            raw_confidence = float(data["conf"][index])
-            confidence = raw_confidence / 100 if raw_confidence >= 0 else None
-        except (KeyError, TypeError, ValueError):
-            confidence = None
-
-        left = float(data["left"][index])
-        top = float(data["top"][index])
-        width = float(data["width"][index])
-        height = float(data["height"][index])
-        locations.append(
-            ExtractedTextLocation(
-                span_id=f"img-p1-w{index}",
-                text=word,
-                page_number=1,
-                bbox=[left, top, left + width, top + height],
-                confidence=confidence,
-                source=ExtractionLocationSource.image_ocr,
-                coordinate_system="normalized_image_pixels",
-            )
-        )
-
+    locations = _extract_locations_from_tesseract_data(
+        data or {},
+        page_number=1,
+        span_prefix="img",
+        source=ExtractionLocationSource.image_ocr,
+        coordinate_system=coordinate_system,
+    )
     return best_text, locations
 
 
@@ -218,46 +292,20 @@ def extract_text_locations_from_pil_image(
     _ensure_tesseract_cmd()
 
     try:
-        normalized = _normalize_image(image)
-        data = pytesseract.image_to_data(
-            normalized,
-            lang=settings.tesseract_lang,
-            config="--oem 3 --psm 6",
-            output_type=pytesseract.Output.DICT,
+        best_text, data, selected_coordinate_system = _ocr_data_candidates(
+            image,
+            settings.tesseract_lang,
         )
     except pytesseract.TesseractNotFoundError as exc:
         raise RuntimeError("Tesseract OCR is not installed or cannot be found.") from exc
     except pytesseract.TesseractError as exc:
         raise RuntimeError("Tesseract OCR failed while collecting text locations.") from exc
 
-    locations: list[ExtractedTextLocation] = []
-    extracted_words: list[str] = []
-    for index, text in enumerate(data.get("text", [])):
-        word = str(text or "").strip()
-        if not word:
-            continue
-        extracted_words.append(word)
-
-        try:
-            raw_confidence = float(data["conf"][index])
-            confidence = raw_confidence / 100 if raw_confidence >= 0 else None
-        except (KeyError, TypeError, ValueError):
-            confidence = None
-
-        left = float(data["left"][index])
-        top = float(data["top"][index])
-        width = float(data["width"][index])
-        height = float(data["height"][index])
-        locations.append(
-            ExtractedTextLocation(
-                span_id=f"{span_prefix}-p{page_number}-w{index}",
-                text=word,
-                page_number=page_number,
-                bbox=[left, top, left + width, top + height],
-                confidence=confidence,
-                source=ExtractionLocationSource.image_ocr,
-                coordinate_system=coordinate_system,
-            )
-        )
-
-    return " ".join(extracted_words), locations
+    locations = _extract_locations_from_tesseract_data(
+        data or {},
+        page_number=page_number,
+        span_prefix=span_prefix,
+        source=ExtractionLocationSource.image_ocr,
+        coordinate_system=selected_coordinate_system or coordinate_system,
+    )
+    return best_text, locations

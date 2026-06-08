@@ -48,14 +48,15 @@ class Settings:
     pdf_ocr_render_scale = float(os.getenv("PDF_OCR_RENDER_SCALE", "2.0"))
     ocr_rotation_angles = tuple(
         int(angle.strip())
-        for angle in os.getenv("OCR_ROTATION_ANGLES", "0,-3,3,-6,6").split(",")
+        for angle in os.getenv("OCR_ROTATION_ANGLES", "0,-3,3").split(",")
         if angle.strip()
     )
     tesseract_psm_modes = tuple(
         int(mode.strip())
-        for mode in os.getenv("TESSERACT_PSM_MODES", "6,11,4").split(",")
+        for mode in os.getenv("TESSERACT_PSM_MODES", "6,11").split(",")
         if mode.strip()
     )
+    ocr_max_candidate_images = int(os.getenv("OCR_MAX_CANDIDATE_IMAGES", "4"))
     supported_content_types = {
         "application/pdf",
         "image/jpeg",
