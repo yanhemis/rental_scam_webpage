@@ -27,6 +27,12 @@ const elements = {
   specialTerms: document.querySelector("#special-terms"),
   documentViewer: document.querySelector("#document-viewer"),
   downloadReport: document.querySelector("#download-report"),
+  contractType: document.querySelector("#contract-type"),
+  deposit: document.querySelector("#deposit"),
+  leasePeriod: document.querySelector("#lease-period"),
+  fixedDate: document.querySelector("#fixed-date"),
+  moveIn: document.querySelector("#move-in"),
+  seniorRights: document.querySelector("#senior-rights"),
 };
 
 const fallbackReport = {
@@ -271,10 +277,133 @@ function scoreLevel(score) {
 function render() {
   if (!state.report) return;
   renderRisk();
+  renderExtractedSummary();
   renderChecklist();
   renderActions();
   renderSpecialTerms();
   renderDocumentOverlays();
+}
+
+function renderExtractedSummary() {
+  const extraction = extractKeyInfo(state.uploadResult?.full_text || "");
+  elements.contractType.textContent = extraction.contractType;
+  elements.deposit.textContent = extraction.deposit;
+  elements.leasePeriod.textContent = extraction.leasePeriod;
+  elements.fixedDate.textContent = extraction.fixedDate;
+  elements.moveIn.textContent = extraction.moveIn;
+  elements.seniorRights.textContent = extraction.seniorRights;
+}
+
+function extractKeyInfo(text) {
+  const normalized = normalizeText(text);
+  if (!normalized) {
+    return {
+      contractType: "전세",
+      deposit: "₩350,000,000",
+      leasePeriod: "2026.08.01 ~ 2028.07.31",
+      fixedDate: "예정",
+      moveIn: "예정",
+      seniorRights: "근저당 없음",
+    };
+  }
+
+  return {
+    contractType: detectContractType(normalized),
+    deposit: extractDeposit(normalized),
+    leasePeriod: extractLeasePeriod(normalized),
+    fixedDate: detectFixedDate(normalized),
+    moveIn: detectMoveIn(normalized),
+    seniorRights: detectSeniorRights(normalized),
+  };
+}
+
+function normalizeText(text) {
+  return String(text || "")
+    .replace(/\[REDACTED\]/g, " ")
+    .replace(/[□☑✓✔]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function detectContractType(text) {
+  const head = text.slice(0, 900);
+  const hasJeonse = /전세|보증금\s*있는\s*월세/.test(head);
+  const hasMonthly = /월세|차임/.test(head);
+  if (hasJeonse && hasMonthly) return "전세/월세 후보";
+  if (hasJeonse) return "전세";
+  if (hasMonthly) return "월세";
+  return "확인 필요";
+}
+
+function extractDeposit(text) {
+  const amountPatterns = [
+    /보증금\s*(?:금)?\s*([0-9,]{4,})\s*원/,
+    /보증금[^0-9가-힣]{0,20}([0-9,]{4,})/,
+    /금\s*([0-9,]{4,})\s*원정/,
+  ];
+  for (const pattern of amountPatterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return formatWon(match[1]);
+  }
+
+  const koreanAmount = text.match(/보증금[^가-힣]{0,20}([일이삼사오육칠팔구십백천만억\s]+)원/);
+  if (koreanAmount?.[1]) {
+    return `${koreanAmount[1].replace(/\s+/g, "")}원`;
+  }
+
+  return "확인 필요";
+}
+
+function formatWon(value) {
+  const number = Number(String(value).replace(/[^\d]/g, ""));
+  if (!Number.isFinite(number) || number <= 0) return "확인 필요";
+  return `₩${number.toLocaleString("ko-KR")}`;
+}
+
+function extractLeasePeriod(text) {
+  const date = "(\\d{4})[.\\-/년\\s]+(\\d{1,2})[.\\-/월\\s]+(\\d{1,2})";
+  const pattern = new RegExp(`${date}[^0-9]{1,20}${date}`);
+  const match = text.match(pattern);
+  if (match) {
+    return `${formatDateParts(match[1], match[2], match[3])} ~ ${formatDateParts(match[4], match[5], match[6])}`;
+  }
+
+  const looseDates = [...text.matchAll(/\d{4}[.\-/년\s]+\d{1,2}[.\-/월\s]+\d{1,2}/g)]
+    .map((item) => item[0])
+    .slice(0, 2);
+  if (looseDates.length >= 2) {
+    return `${cleanDate(looseDates[0])} ~ ${cleanDate(looseDates[1])}`;
+  }
+
+  if (/임대차기간|계약\s*기간/.test(text)) return "날짜 확인 필요";
+  return "확인 필요";
+}
+
+function formatDateParts(year, month, day) {
+  return `${year}.${String(month).padStart(2, "0")}.${String(day).padStart(2, "0")}`;
+}
+
+function cleanDate(value) {
+  const parts = value.match(/(\d{4}).*?(\d{1,2}).*?(\d{1,2})/);
+  return parts ? formatDateParts(parts[1], parts[2], parts[3]) : value;
+}
+
+function detectFixedDate(text) {
+  if (/확정일자[^。.\n]{0,40}(완료|부여|신고필증|접수완료)/.test(text)) return "완료";
+  if (/확정일자/.test(text)) return "확인 필요";
+  return "예정";
+}
+
+function detectMoveIn(text) {
+  if (/전입신고[^。.\n]{0,40}(완료|신청|예정일|까지)/.test(text)) return "확인 필요";
+  if (/전입신고|주민등록/.test(text)) return "예정";
+  return "확인 필요";
+}
+
+function detectSeniorRights(text) {
+  if (/선순위[^。.\n]{0,20}없음|근저당[^。.\n]{0,20}없음/.test(text)) return "근저당 없음";
+  if (/근저당|저당권|담보권|압류|가압류|선순위/.test(text)) return "확인 필요";
+  return "확인 필요";
 }
 
 function renderRisk() {
