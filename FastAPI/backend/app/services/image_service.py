@@ -1,11 +1,11 @@
 from pathlib import Path
 from shutil import which
-from typing import Union
 
 import pytesseract
 from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 
 from app.config import get_settings
+from app.schemas.extraction_schema import ExtractedTextLocation, ExtractionLocationSource
 
 
 def _resolve_tesseract_cmd() -> str | None:
@@ -127,29 +127,137 @@ def _ocr_candidates(image: Image.Image, lang: str) -> str:
     return best_text
 
 
-def extract_text_from_image(file_path: Union[str, Path]) -> str:
-    image_path = Path(file_path)
-    settings = get_settings()
+def _ensure_tesseract_cmd() -> None:
     tesseract_cmd = _resolve_tesseract_cmd()
-
     if tesseract_cmd is None:
         raise RuntimeError(
-            "Tesseract OCR 실행 파일을 찾을 수 없습니다. 서버에 Tesseract를 설치하고 "
-            "TESSERACT_CMD 환경변수를 설정해주세요."
+            "Tesseract OCR executable was not found. Install Tesseract or set TESSERACT_CMD."
         )
-
     pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+
+
+def extract_text_from_image(file_path: str | Path) -> str:
+    image_path = Path(file_path)
+    settings = get_settings()
+    _ensure_tesseract_cmd()
 
     try:
         with Image.open(image_path) as image:
             return _ocr_candidates(image, settings.tesseract_lang)
     except UnidentifiedImageError as exc:
-        raise ValueError("지원하지 않는 이미지 형식입니다.") from exc
+        raise ValueError("Unsupported image format.") from exc
     except pytesseract.TesseractNotFoundError as exc:
-        raise RuntimeError(
-            "Tesseract OCR이 설치되어 있지 않거나 경로를 찾을 수 없습니다."
-        ) from exc
+        raise RuntimeError("Tesseract OCR is not installed or cannot be found.") from exc
     except pytesseract.TesseractError as exc:
-        raise RuntimeError(
-            "Tesseract OCR 실행 중 오류가 발생했습니다. 언어 데이터(kor/eng) 설치 여부를 확인해주세요."
-        ) from exc
+        raise RuntimeError("Tesseract OCR failed while extracting image text.") from exc
+
+
+def extract_text_locations_from_image(
+    file_path: str | Path,
+) -> tuple[str, list[ExtractedTextLocation]]:
+    image_path = Path(file_path)
+    settings = get_settings()
+    _ensure_tesseract_cmd()
+
+    try:
+        with Image.open(image_path) as image:
+            best_text = _ocr_candidates(image, settings.tesseract_lang)
+            normalized = _normalize_image(image)
+            data = pytesseract.image_to_data(
+                normalized,
+                lang=settings.tesseract_lang,
+                config="--oem 3 --psm 6",
+                output_type=pytesseract.Output.DICT,
+            )
+    except UnidentifiedImageError as exc:
+        raise ValueError("Unsupported image format.") from exc
+    except pytesseract.TesseractNotFoundError as exc:
+        raise RuntimeError("Tesseract OCR is not installed or cannot be found.") from exc
+    except pytesseract.TesseractError as exc:
+        raise RuntimeError("Tesseract OCR failed while collecting text locations.") from exc
+
+    locations: list[ExtractedTextLocation] = []
+    for index, text in enumerate(data.get("text", [])):
+        word = str(text or "").strip()
+        if not word:
+            continue
+
+        try:
+            raw_confidence = float(data["conf"][index])
+            confidence = raw_confidence / 100 if raw_confidence >= 0 else None
+        except (KeyError, TypeError, ValueError):
+            confidence = None
+
+        left = float(data["left"][index])
+        top = float(data["top"][index])
+        width = float(data["width"][index])
+        height = float(data["height"][index])
+        locations.append(
+            ExtractedTextLocation(
+                span_id=f"img-p1-w{index}",
+                text=word,
+                page_number=1,
+                bbox=[left, top, left + width, top + height],
+                confidence=confidence,
+                source=ExtractionLocationSource.image_ocr,
+                coordinate_system="normalized_image_pixels",
+            )
+        )
+
+    return best_text, locations
+
+
+def extract_text_locations_from_pil_image(
+    image: Image.Image,
+    *,
+    page_number: int = 1,
+    span_prefix: str = "img",
+    coordinate_system: str = "normalized_image_pixels",
+) -> tuple[str, list[ExtractedTextLocation]]:
+    settings = get_settings()
+    _ensure_tesseract_cmd()
+
+    try:
+        normalized = _normalize_image(image)
+        data = pytesseract.image_to_data(
+            normalized,
+            lang=settings.tesseract_lang,
+            config="--oem 3 --psm 6",
+            output_type=pytesseract.Output.DICT,
+        )
+    except pytesseract.TesseractNotFoundError as exc:
+        raise RuntimeError("Tesseract OCR is not installed or cannot be found.") from exc
+    except pytesseract.TesseractError as exc:
+        raise RuntimeError("Tesseract OCR failed while collecting text locations.") from exc
+
+    locations: list[ExtractedTextLocation] = []
+    extracted_words: list[str] = []
+    for index, text in enumerate(data.get("text", [])):
+        word = str(text or "").strip()
+        if not word:
+            continue
+        extracted_words.append(word)
+
+        try:
+            raw_confidence = float(data["conf"][index])
+            confidence = raw_confidence / 100 if raw_confidence >= 0 else None
+        except (KeyError, TypeError, ValueError):
+            confidence = None
+
+        left = float(data["left"][index])
+        top = float(data["top"][index])
+        width = float(data["width"][index])
+        height = float(data["height"][index])
+        locations.append(
+            ExtractedTextLocation(
+                span_id=f"{span_prefix}-p{page_number}-w{index}",
+                text=word,
+                page_number=page_number,
+                bbox=[left, top, left + width, top + height],
+                confidence=confidence,
+                source=ExtractionLocationSource.image_ocr,
+                coordinate_system=coordinate_system,
+            )
+        )
+
+    return " ".join(extracted_words), locations

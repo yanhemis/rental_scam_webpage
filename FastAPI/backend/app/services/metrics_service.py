@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 
 from app.config import get_settings
 from app.core.logging_config import log_event
-from typing import Optional
 
 _metric_events: list[dict[str, object]] = []
 
@@ -11,7 +10,7 @@ def record_metric(
     metric_name: str,
     value: float = 1.0,
     unit: str = "Count",
-    dimensions: Optional[dict[str, str]] = None,
+    dimensions: dict[str, str] | None = None,
 ) -> None:
     settings = get_settings()
     if not settings.metrics_enabled:

@@ -5,10 +5,9 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.config import get_settings
-from typing import Optional
 
 
-def _safe_filename(filename: Optional[str]) -> str:
+def _safe_filename(filename: str | None) -> str:
     original_name = Path(filename or "upload.bin").name
     suffix = Path(original_name).suffix.lower()
     stem = Path(original_name).stem or "upload"
@@ -30,3 +29,12 @@ async def save_upload_file(file: UploadFile) -> tuple[Path, str]:
 
     await file.seek(0)
     return saved_path, file_hash
+
+
+def delete_upload_file(file_path: str | Path) -> bool:
+    target = Path(file_path)
+    if not target.exists() or not target.is_file():
+        return False
+
+    target.unlink()
+    return True

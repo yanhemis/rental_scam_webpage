@@ -1,0 +1,25 @@
+{
+  "sample_id": "SAMPLE_08_STANDARD_FORM_MOBILE_TILTED",
+  "contract_type": "반전세",
+  "deposit_amount": 90000000,
+  "monthly_rent": 420000,
+  "lease_start_date": "2026-12-28",
+  "lease_end_date": "2028-12-27",
+  "confirmed_date_status": "잔금 지급 후 확정일자 신청 가능",
+  "move_in_report_status": "입주일 당일 전입신고",
+  "priority_rights": "선순위 임차보증금 15,000,000원 존재",
+  "address": "경기도 가람시 별하로 88, 누리팰리스 701호",
+  "landlord_name": "백도현",
+  "tenant_name": "신예린",
+  "special_terms": [
+    "선순위 임차인은 2026.12.20까지 퇴거 예정임.",
+    "임대인은 선순위 임차인의 퇴거 확인서를 임차인에게 제공한다.",
+    "임차인은 확인서 수령 후 잔금을 지급한다.",
+    "월 차임은 매월 10일 지급한다."
+  ],
+  "risk_flags": [
+    "선순위 임차보증금 존재",
+    "선순위 임차인 퇴거 확인 필요"
+  ],
+  "missing_fields": []
+}

@@ -1,0 +1,17 @@
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+uploads/
+redaction_preview/
+redaction_preview_template/
+ocr_preview/
+*.upload_result.json
+*redaction_summary.json
+
+.env
+*.db
+*.sqlite
+*.sqlite3
+

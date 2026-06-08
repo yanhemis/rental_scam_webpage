@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>주택임대차표준계약서 템플릿</title>
+  <style>
+    :root {
+      --paper-width: 210mm;
+      --paper-min-height: 297mm;
+      --ink: #111827;
+      --line: #1f2937;
+      --muted: #6b7280;
+      --bg: #eef2f7;
+      --soft: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      line-height: 1.45;
+    }
+
+    .page {
+      width: var(--paper-width);
+      min-height: var(--paper-min-height);
+      margin: 18px auto;
+      padding: 14mm;
+      background: #fff;
+      box-shadow: 0 16px 38px rgba(15, 23, 42, 0.14);
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .header-note {
+      text-align: right;
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .lead {
+      margin: 0 0 12px;
+      font-size: 13px;
+    }
+
+    .important-note {
+      margin: 0 0 12px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      background: var(--soft);
+      font-size: 11px;
+    }
+
+    .law-note {
+      margin: 0 0 12px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .section-title {
+      margin: 16px 0 6px;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .subclause {
+      margin: 10px 0 0;
+      font-size: 12px;
+    }
+
+    .check-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin: 6px 0 10px;
+      font-size: 12px;
+    }
+
+    .renewal-box {
+      margin-top: 6px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      font-size: 11.5px;
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 7px 8px;
+      vertical-align: top;
+      text-align: left;
+      word-break: keep-all;
+    }
+
+    th {
+      width: 19%;
+      background: var(--soft);
+      font-weight: 700;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .inline-field {
+      display: inline-block;
+      min-width: 110px;
+      border-bottom: 1px solid var(--line);
+      height: 18px;
+      vertical-align: middle;
+    }
+
+    .special-box {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+
+    .special-box ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .special-box li {
+      margin: 4px 0;
+    }
+
+    .signature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .signature-card {
+      border: 1px solid var(--line);
+      min-height: 136px;
+      padding: 10px;
+      font-size: 12px;
+    }
+
+    .signature-card h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+    }
+
+    .footer-card {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      min-height: 106px;
+      padding: 10px;
+      font-size: 12px;
+    }
+
+    .footer-card h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+    }
+
+    .footer-note {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .page {
+        margin: 0;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <h1 class="title">주택임대차표준계약서</h1>
+      <div class="header-note">
+        TEMPLATE<br />
+        OCR / 정보추출 테스트용
+      </div>
+    </div>
+
+    <p class="lead">
+      임대인 <strong>{{landlord_name}}</strong>과 임차인 <strong>{{tenant_name}}</strong>은 아래와 같이 임대차계약을 체결한다.
+    </p>
+
+    <p class="important-note">
+      이 템플릿은 실제 공개된 주택임대차 표준계약서의 섹션 흐름을 참고해 테스트용으로 정리한 것입니다.
+      실제 법률 효력을 위한 문서가 아니라 OCR·정보추출·위험탐지 테스트를 위한 재현용 양식입니다.
+    </p>
+    <p class="law-note">
+      이 계약서는 법무부가 국토교통부·서울시 및 관련 전문가들과 함께 민법, 주택임대차보호법, 공인중개사법 등 관계법령에
+      근거하여 만든 표준계약서 흐름을 참고했습니다. 법의 보호를 받기 위해 【중요확인사항】(별지1)을 확인하는 구조를 반영합니다.
+    </p>
+
+    <div class="section-title">[임차주택의 표시]</div>
+    <table>
+      <tr>
+        <th>소 재 지</th>
+        <td colspan="3">{{road_address}}</td>
+      </tr>
+      <tr>
+        <th>토 지</th>
+        <td>{{land_category}}</td>
+        <th>면적</th>
+        <td>{{land_area}}</td>
+      </tr>
+      <tr>
+        <th>건 물</th>
+        <td>{{building_structure_usage}}</td>
+        <th>면적</th>
+        <td>{{building_area}}</td>
+      </tr>
+      <tr>
+        <th>임차할부분</th>
+        <td colspan="3">{{leased_part}}</td>
+      </tr>
+    </table>
+
+    <div class="section-title">계약의 종류</div>
+    <div class="check-row">
+      <span>{{contract_type_new}}</span>
+      <span>{{contract_type_renewal}}</span>
+      <span>{{contract_type_legal_renewal}}</span>
+      <span>유형: <strong>{{contract_type}}</strong></span>
+    </div>
+    <div class="renewal-box">
+      * 갱신 전 임대차계약 기간 및 금액<br />
+      계약 기간: {{previous_lease_period}}<br />
+      보증금: {{previous_deposit}} / 차임: {{previous_monthly_rent}}
+    </div>
+
+    <table>
+      <tr>
+        <th>미납 국세·지방세</th>
+        <td>{{tax_status}}<br />{{tax_signature_note}}</td>
+      </tr>
+      <tr>
+        <th>선순위 확정일자 현황</th>
+        <td>{{priority_status}}<br />{{priority_signature_note}}</td>
+      </tr>
+      <tr>
+        <th>확정일자 부여란</th>
+        <td>{{confirmed_date_note}}</td>
+      </tr>
+    </table>
+
+    <div class="section-title">[계약내용]</div>
+    <table>
+      <tr>
+        <th>보 증 금</th>
+        <td colspan="3">{{deposit_text}}</td>
+      </tr>
+      <tr>
+        <th>계 약 금</th>
+        <td>{{down_payment_text}}</td>
+        <th>지급시기</th>
+        <td>{{down_payment_date}}</td>
+      </tr>
+      <tr>
+        <th>중 도 금</th>
+        <td>{{middle_payment_text}}</td>
+        <th>지급일</th>
+        <td>{{middle_payment_date}}</td>
+      </tr>
+      <tr>
+        <th>잔 금</th>
+        <td>{{balance_payment_text}}</td>
+        <th>지급일</th>
+        <td>{{balance_payment_date}}</td>
+      </tr>
+      <tr>
+        <th>차임(월세)</th>
+        <td colspan="3">{{monthly_rent_text}}</td>
+      </tr>
+      <tr>
+        <th>관 리 비</th>
+        <td colspan="3">{{management_fee_text}}</td>
+      </tr>
+      <tr>
+        <th>계약 형태 구분</th>
+        <td colspan="3">{{rent_category_checks}}</td>
+      </tr>
+    </table>
+
+    <p class="subclause">
+      <strong>제2조(임대차기간)</strong>
+      임대인은 임차주택을 임대차 목적대로 사용·수익할 수 있는 상태로 {{handover_date}}까지 임차인에게 인도하고,
+      임대차기간은 인도일로부터 {{lease_end_date_text}}까지로 한다.
+    </p>
+
+    <p class="subclause">
+      <strong>제3조(입주 전 수리)</strong>
+      {{repair_clause}}
+    </p>
+
+    <p class="subclause">
+      <strong>제4조(임차주택의 사용·관리·수선)</strong>
+      {{usage_clause}}
+    </p>
+
+    <p class="subclause">
+      <strong>제5조(계약의 해제)</strong>
+      임차인이 임대인에게 중도금(중도금이 없을 때는 잔금)을 지급하기 전까지,
+      임대인은 계약금의 배액을 상환하고 임차인은 계약금을 포기하고 이 계약을 해제할 수 있다.
+    </p>
+
+    <p class="subclause">
+      <strong>제6조(채무불이행과 손해배상)</strong>
+      당사자 일방이 채무를 이행하지 아니하는 때에는 상대방은 상당한 기간을 정하여 그 이행을 최고하고 계약을 해제할 수 있으며,
+      그로 인한 손해배상을 청구할 수 있다. 다만, 채무자가 미리 이행하지 아니할 의사를 표시한 경우에는 최고를 요하지 아니한다.
+    </p>
+
+    <p class="subclause">
+      <strong>제7조(계약의 해지)</strong>
+      임차인은 본인의 과실 없이 임차주택의 일부가 멸실 기타 사유로 인하여 임대차의 목적대로 사용할 수 없는 경우 계약을 해지할 수 있고,
+      임대인은 임차인이 2기의 차임액에 달하도록 연체하거나 제4조 제1항을 위반한 경우 계약을 해지할 수 있다.
+    </p>
+
+    <p class="subclause">
+      <strong>제8조(갱신요구와 거절)</strong>
+      임차인은 임대차기간이 끝나기 6개월 전부터 2개월 전까지의 기간에 계약갱신을 요구할 수 있고,
+      임대인은 법률상 사유가 있는 경우에 한하여 이를 거절할 수 있다.
+    </p>
+
+    <p class="subclause">
+      <strong>제9조(계약의 종료)</strong>
+      임대차계약이 종료된 경우 임차인은 임차주택을 반환하고,
+      임대인은 이와 동시에 보증금을 반환하여야 한다.
+    </p>
+
+    <p class="subclause">
+      <strong>제10조(비용의 정산)</strong>
+      임차인은 계약 종료 시 공과금과 관리비를 정산하여야 하며, 이미 납부한 관리비 중 장기수선충당금은 관련 법령과 관리주체 기준에 따라 반환을 청구할 수 있다.
+    </p>
+
+    <p class="subclause">
+      <strong>제11조(분쟁의 해결)</strong>
+      임대인과 임차인은 본 임대차계약과 관련한 분쟁이 발생하는 경우, 당사자 간 협의 또는 주택임대차분쟁조정위원회의 조정을 통해 해결하기 위해 노력한다.
+    </p>
+
+    <p class="subclause">
+      <strong>제12조(중개보수 등)</strong>
+      중개보수는 거래가액 및 관계 법령에 따른다. 다만, 개업공인중개사의 고의 또는 과실로 거래행위가 무효·취소 또는 해제된 경우에는 그러하지 아니하다.
+    </p>
+
+    <p class="subclause">
+      <strong>제13조(중개대상물확인·설명서 교부)</strong>
+      개업공인중개사는 중개대상물 확인·설명서를 작성하고 업무보증관계증서 사본을 첨부하여 {{broker_delivery_date}} 임대인과 임차인에게 각각 교부한다.
+    </p>
+
+    <div class="section-title">[특약사항]</div>
+    <div class="special-box">
+      <ul>
+        <li>{{special_term_1}}</li>
+        <li>{{special_term_2}}</li>
+        <li>{{special_term_3}}</li>
+        <li>{{special_term_4}}</li>
+        <li>{{special_term_5}}</li>
+        <li>{{special_term_6}}</li>
+        <li>{{special_term_7}}</li>
+        <li>{{special_term_8}}</li>
+      </ul>
+    </div>
+
+    <div class="section-title">당사자 확인</div>
+    <div class="signature-grid">
+      <div class="signature-card">
+        <h3>임대인</h3>
+        주소: {{landlord_address}}<br />
+        주민등록번호: {{landlord_id_masked}}<br />
+        전화: {{landlord_phone}}<br />
+        성명: {{landlord_name}}<br />
+        대리인: {{landlord_agent_name}} / 대리인 주소: {{landlord_agent_address}}<br />
+        서명 또는 날인: <span class="inline-field"></span>
+      </div>
+      <div class="signature-card">
+        <h3>임차인</h3>
+        주소: {{tenant_address}}<br />
+        주민등록번호: {{tenant_id_masked}}<br />
+        전화: {{tenant_phone}}<br />
+        성명: {{tenant_name}}<br />
+        대리인: {{tenant_agent_name}} / 대리인 주소: {{tenant_agent_address}}<br />
+        서명 또는 날인: <span class="inline-field"></span>
+      </div>
+    </div>
+
+    <div class="footer-card">
+      <h3>개업공인중개사</h3>
+      사무소소재지: {{agent_office_address}}<br />
+      중개대상물확인·설명서 교부일: {{broker_delivery_date}}<br />
+      사무소명칭: {{agent_office_name}}<br />
+      대표: {{agent_name}} / 등록번호: {{agent_registration_number}} / 전화: {{agent_phone}}<br />
+      소속공인중개사: {{assistant_agent_name}}<br />
+      서명 및 날인: <span class="inline-field"></span>
+    </div>
+
+    <div class="footer-note">
+      작성일: {{contract_date}} / 테스트용 표준계약서 템플릿
+    </div>
+  </div>
+</body>
+</html>

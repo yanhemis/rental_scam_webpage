@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 
 class DocumentSource(str, Enum):
@@ -23,7 +22,7 @@ class DocumentStatus(str, Enum):
 @dataclass(slots=True)
 class ContractDocument:
     document_id: str
-    owner_id: Optional[str]
+    owner_id: str | None
     file_name: str
     file_path: str
     sha256: str

@@ -9,7 +9,6 @@ from app.core.logging_config import clear_request_id, configure_logging, log_eve
 from app.routers.analysis_router import router as analysis_router
 from app.routers.admin_router import router as admin_router
 from app.routers.auth_router import router as auth_router
-from app.routers.demo_router import router as demo_router
 from app.routers.report_router import router as report_router
 from app.routers.retention_router import router as retention_router
 from app.routers.upload_router import router as document_router
@@ -85,7 +84,6 @@ app.include_router(analysis_router, prefix=settings.api_prefix)
 app.include_router(report_router, prefix=settings.api_prefix)
 app.include_router(auth_router, prefix=settings.api_prefix)
 app.include_router(retention_router, prefix=settings.api_prefix)
-app.include_router(demo_router)
 
 
 @app.get("/")

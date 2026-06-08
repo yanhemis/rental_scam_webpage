@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from app.config import Settings
 from app.core.logging_config import get_request_id, log_event
 from app.dependencies import get_app_settings
-from app.schemas.contract_extract_schema import ExtractedContractInfo
 from app.schemas.document_schema import (
     DocumentMetadataRecord,
     DocumentMetadataSyncResponse,
@@ -15,15 +14,14 @@ from app.schemas.document_schema import (
     DocumentStatusUpdateRequest,
     DocumentUploadResponse,
 )
-from app.services import contract_extract_service, extract_service, file_service, metrics_service, storage_service
-from typing import Optional
+from app.services import extract_service, file_service, metrics_service, storage_service
 
 router = APIRouter(tags=["documents"])
 
 
 def _detect_document_source(
-    content_type: Optional[str],
-    source: Optional[DocumentSourceType],
+    content_type: str | None,
+    source: DocumentSourceType | None,
 ) -> DocumentSourceType:
     if source is not None:
         return source
@@ -36,8 +34,8 @@ async def _handle_upload(
     request: Request,
     file: UploadFile,
     settings: Settings,
-    source: Optional[DocumentSourceType],
-    user_id: Optional[str],
+    source: DocumentSourceType | None,
+    user_id: str | None,
 ) -> DocumentUploadResponse:
     request_id = getattr(request.state, "request_id", get_request_id())
 
@@ -72,11 +70,12 @@ async def _handle_upload(
     storage_service.save_document_metadata(metadata)
 
     try:
-        extracted_text, quality, retry_count = await extract_service.extract_text_with_retry(
+        extraction_result, retry_count = await extract_service.extract_document_with_retry(
             saved_path,
             file.content_type,
             document_id=document_id,
             request_id=request_id,
+            content_hash=sha256_hash,
         )
     except ValueError as exc:
         metrics_service.record_metric("UploadFailureCount")
@@ -91,16 +90,26 @@ async def _handle_upload(
             detail=str(exc),
         ) from exc
 
-    storage_service.save_extracted_text(document_id, extracted_text)
-
     metadata = storage_service.update_document_metadata(
         document_id,
         DocumentStatusUpdateRequest(
             status=DocumentStatusType.text_extracted,
             retry_count=retry_count,
-            extracted_text_quality=quality,
+            extracted_text_quality=extraction_result.quality,
         ),
     )
+    raw_file_deleted = False
+    if settings.delete_raw_upload_after_ocr:
+        raw_file_deleted = file_service.delete_upload_file(saved_path)
+        if raw_file_deleted:
+            metadata = metadata.model_copy(
+                update={
+                    "file_path": "[raw_upload_deleted_after_ocr]",
+                    "updated_at": datetime.utcnow(),
+                }
+            )
+            storage_service.replace_document_metadata(metadata)
+
     metrics_service.record_metric("UploadSuccessCount")
     log_event(
         "document_uploaded",
@@ -111,9 +120,11 @@ async def _handle_upload(
         content_type=metadata.content_type,
         source=metadata.source.value,
         retry_count=metadata.retry_count,
+        raw_file_deleted=raw_file_deleted,
+        redaction_count=len(extraction_result.redactions),
     )
 
-    preview_text = extracted_text[:500] if extracted_text else ""
+    preview_text = extraction_result.text[:500] if extraction_result.text else ""
     return DocumentUploadResponse(
         request_id=request_id,
         document_id=document_id,
@@ -124,7 +135,10 @@ async def _handle_upload(
         source=metadata.source,
         status=metadata.status,
         text_preview=preview_text,
-        full_text=extracted_text,
+        full_text=extraction_result.text,
+        text_locations=extraction_result.locations,
+        redactions=extraction_result.redactions,
+        redaction_metrics=extraction_result.redaction_metrics,
         retry_count=metadata.retry_count,
         max_retry_count=metadata.max_retry_count,
         deletion_scheduled_at=metadata.deletion_scheduled_at,
@@ -135,8 +149,8 @@ async def _handle_upload(
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
-    source: Optional[DocumentSourceType] = Form(default=None),
-    user_id: Optional[str] = Form(default=None),
+    source: DocumentSourceType | None = Form(default=None),
+    user_id: str | None = Form(default=None),
     settings: Settings = Depends(get_app_settings),
 ):
     return await _handle_upload(request, file, settings, source, user_id)
@@ -146,8 +160,8 @@ async def upload_document(
 async def upload_document_legacy(
     request: Request,
     file: UploadFile = File(...),
-    source: Optional[DocumentSourceType] = Form(default=None),
-    user_id: Optional[str] = Form(default=None),
+    source: DocumentSourceType | None = Form(default=None),
+    user_id: str | None = Form(default=None),
     settings: Settings = Depends(get_app_settings),
 ):
     return await _handle_upload(request, file, settings, source, user_id)
@@ -192,29 +206,3 @@ async def get_document_sync_payload(document_id: str):
     if payload is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
     return payload
-
-@router.get("/documents/{document_id}/extracted-fields", response_model=ExtractedContractInfo)
-async def get_document_extracted_fields(document_id: str):
-    record = storage_service.get_document_metadata(document_id)
-    if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문서를 찾을 수 없습니다.")
-
-    cached = storage_service.get_contract_extracted_fields(document_id)
-    if cached is not None:
-        return cached
-
-    extracted_text = storage_service.get_extracted_text(document_id)
-    if not extracted_text:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="OCR 텍스트를 찾을 수 없어 필드 추출을 수행할 수 없습니다.",
-        )
-
-    extracted = contract_extract_service.extract_contract_fields(extracted_text, document_id=document_id)
-    storage_service.save_contract_extracted_fields(document_id, extracted)
-    return extracted
-
-
-@router.post("/documents/{document_id}/extract-fields", response_model=ExtractedContractInfo)
-async def extract_document_fields(document_id: str):
-    return await get_document_extracted_fields(document_id)

@@ -1,0 +1,118 @@
+from app.schemas.report_schema import SafetyChecklistGroup, SafetyChecklistItem
+
+
+def build_default_safety_checklist() -> list[SafetyChecklistGroup]:
+    return [
+        SafetyChecklistGroup(
+            stage="before_contract",
+            title="계약 전 확인",
+            items=[
+                SafetyChecklistItem(
+                    id="registry_owner_check",
+                    label="등기부등본 확인",
+                    description="임대인과 등기상 소유자가 일치하는지 확인하세요.",
+                    why_it_matters="소유자가 아닌 사람과 계약하면 보증금 반환 위험이 커질 수 있습니다.",
+                    official_url="https://www.iros.go.kr",
+                    action_label="인터넷등기소 열기",
+                    priority="high",
+                    stage="before_contract",
+                ),
+                SafetyChecklistItem(
+                    id="building_register_check",
+                    label="건축물대장 확인",
+                    description="주소, 용도, 위반건축물 여부를 확인하세요.",
+                    why_it_matters="위반건축물이나 용도 불일치가 있으면 보증보험 가입과 권리 보호에 문제가 생길 수 있습니다.",
+                    official_url="https://www.gov.kr",
+                    action_label="정부24 열기",
+                    priority="high",
+                    stage="before_contract",
+                ),
+                SafetyChecklistItem(
+                    id="market_price_check",
+                    label="실거래가/시세 확인",
+                    description="보증금이 주변 시세 대비 과도하지 않은지 확인하세요.",
+                    why_it_matters="시세보다 과도한 보증금은 깡통전세 위험 신호일 수 있습니다.",
+                    official_url="https://rt.molit.go.kr",
+                    action_label="실거래가 공개시스템 열기",
+                    priority="medium",
+                    stage="before_contract",
+                ),
+                SafetyChecklistItem(
+                    id="guarantee_insurance_check",
+                    label="전세보증금 반환보증 확인",
+                    description="HUG 등에서 보증보험 가입 가능 여부를 확인하세요.",
+                    why_it_matters="보증보험 가입 가능 여부는 보증금 회수 가능성과 직접 연결됩니다.",
+                    official_url="https://www.khug.or.kr",
+                    action_label="HUG 열기",
+                    priority="high",
+                    stage="before_contract",
+                ),
+            ],
+        ),
+        SafetyChecklistGroup(
+            stage="contract_day",
+            title="계약 당일 확인",
+            items=[
+                SafetyChecklistItem(
+                    id="owner_identity_check",
+                    label="임대인 신분/위임장 확인",
+                    description="계약 상대방이 소유자 본인인지, 대리인이라면 위임장과 인감증명서를 확인하세요.",
+                    why_it_matters="무권대리 계약은 보증금 반환과 계약 효력에 큰 위험을 만들 수 있습니다.",
+                    priority="high",
+                    stage="contract_day",
+                ),
+                SafetyChecklistItem(
+                    id="deposit_account_owner_check",
+                    label="입금 계좌 명의 확인",
+                    description="계약금과 잔금 입금 계좌가 임대인 명의인지 확인하세요.",
+                    why_it_matters="타인 계좌 입금은 추후 분쟁 시 입증이 어려울 수 있습니다.",
+                    priority="high",
+                    stage="contract_day",
+                ),
+                SafetyChecklistItem(
+                    id="broker_registration_check",
+                    label="중개사 등록 여부 확인",
+                    description="공인중개사 등록번호와 사무소 정보를 확인하세요.",
+                    why_it_matters="등록되지 않은 중개 행위는 사고 발생 시 보호 장치가 약할 수 있습니다.",
+                    official_url="https://www.nsdi.go.kr",
+                    action_label="국가공간정보포털 열기",
+                    priority="medium",
+                    stage="contract_day",
+                ),
+            ],
+        ),
+        SafetyChecklistGroup(
+            stage="after_contract",
+            title="계약 후 진행",
+            items=[
+                SafetyChecklistItem(
+                    id="move_in_report_check",
+                    label="전입신고",
+                    description="입주 후 즉시 전입신고를 진행하세요.",
+                    why_it_matters="대항력 확보의 기본 요건입니다.",
+                    official_url="https://www.gov.kr",
+                    action_label="정부24 열기",
+                    priority="high",
+                    stage="after_contract",
+                ),
+                SafetyChecklistItem(
+                    id="fixed_date_check",
+                    label="확정일자",
+                    description="계약서에 확정일자를 받으세요.",
+                    why_it_matters="우선변제권 확보에 필요합니다.",
+                    official_url="https://www.gov.kr",
+                    action_label="정부24 열기",
+                    priority="high",
+                    stage="after_contract",
+                ),
+                SafetyChecklistItem(
+                    id="document_archive_check",
+                    label="계약서/영수증 보관",
+                    description="계약서, 입금 영수증, 중개대상물 확인설명서를 안전하게 보관하세요.",
+                    why_it_matters="분쟁 발생 시 핵심 증빙 자료가 됩니다.",
+                    priority="medium",
+                    stage="after_contract",
+                ),
+            ],
+        ),
+    ]
