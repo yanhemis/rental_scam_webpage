@@ -1,5 +1,5 @@
-from typing import Optional
 from __future__ import annotations
+from typing import Union, Optional
 
 import re
 from dataclasses import dataclass
@@ -175,7 +175,7 @@ LARGE_UNITS = {"만": 10_000, "억": 100_000_000}
 def extract_contract_fields(
     text: str,
     locations: list[ExtractedTextLocation],
-    document_type: ContractDocumentType | None = None,
+    document_type: Optional[ContractDocumentType] = None,
 ) -> ContractFieldExtractionResult:
     requested_type = document_type or ContractDocumentType.unknown
     selected_type = requested_type
@@ -690,7 +690,7 @@ def _amount_quality(text: str, amount: int) -> int:
 def _extract_period_after_contract_table(
     lines: list[list[ExtractedTextLocation]],
     table_start: int,
-) -> tuple[tuple[str, str, int], tuple[str, str, int], list[ExtractedTextLocation]] | None:
+) -> Optional[tuple[tuple[str, str, int], tuple[str, str, int], list[ExtractedTextLocation]]]:
     for index, line in enumerate(lines[table_start + 1 : min(len(lines), table_start + 16)], start=table_start + 1):
         if not _looks_like_article_two(_line_text(line)):
             continue
@@ -757,7 +757,7 @@ def _right_context_for_labels(
 
 
 def _axis_field(
-    value: str | int | float | bool | list | None,
+    value: Optional[Union[str, int, float, bool, list]],
     display_value: str,
     confidence: float,
     locations: list[ExtractedTextLocation],
@@ -939,7 +939,7 @@ def _find_date_pair_near_period_label(text: str, date_matches: list[tuple[str, s
 def _evidence(
     locations: list[ExtractedTextLocation],
     label_terms: tuple[str, ...],
-    value_text: str | int | float | bool | list | None,
+    value_text: Optional[Union[str, int, float, bool, list]],
 ) -> list[ContractFieldEvidence]:
     if not locations:
         return []
@@ -1005,7 +1005,7 @@ def _union_bbox(items: list[ExtractedTextLocation]) -> list[float]:
 
 
 def _field(
-    value: str | int | float | bool | list | None,
+    value: Optional[Union[str, int, float, bool, list]],
     display_value: str,
     confidence: float,
     needs_review: bool,

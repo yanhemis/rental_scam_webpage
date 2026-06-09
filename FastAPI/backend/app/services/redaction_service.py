@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Optional
 import re
 from dataclasses import dataclass
 from itertools import count

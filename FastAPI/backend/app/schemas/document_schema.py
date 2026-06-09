@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Union, Optional
 from datetime import datetime
 from enum import Enum
 
@@ -40,14 +40,14 @@ class ContractFieldEvidence(BaseModel):
     text: str = ""
     label_text: Optional[str] = None
     value_text: Optional[str] = None
-    label_bbox: list[float] | None = None
-    value_bbox: list[float] | None = None
+    label_bbox: Optional[list[float]] = None
+    value_bbox: Optional[list[float]] = None
     match_confidence: float = 0.0
     ocr_confidence: Optional[float] = None
 
 
 class ContractFieldValue(BaseModel):
-    value: str | int | float | bool | Optional[list[str]] = None
+    value: Optional[Union[str, int, float, bool, list[str]]] = None
     display_value: str = "확인 필요"
     confidence: float = 0.0
     needs_review: bool = True
@@ -89,7 +89,7 @@ class DocumentUploadResponse(BaseModel):
     status: DocumentStatusType
     text_preview: str
     full_text: str
-    contract_fields: ContractFieldExtractionResult | None = None
+    contract_fields: Optional[ContractFieldExtractionResult] = None
     preview_pages: list[DocumentPreviewPage] = Field(default_factory=list)
     text_locations: list[ExtractedTextLocation] = Field(default_factory=list)
     redactions: list[RedactionTarget] = Field(default_factory=list)

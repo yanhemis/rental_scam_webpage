@@ -1,5 +1,5 @@
-from typing import Optional
 from __future__ import annotations
+from typing import Union, Optional
 
 import base64
 from io import BytesIO
@@ -34,7 +34,7 @@ def _preview_coordinate_system_for_pdf() -> str:
 
 
 def build_document_preview_pages(
-    file_path: str | Path,
+    file_path: Union[str, Path],
     content_type: Optional[str],
 ) -> list[DocumentPreviewPage]:
     settings = get_settings()

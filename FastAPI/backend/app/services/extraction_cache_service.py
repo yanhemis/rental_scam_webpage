@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Protocol, Optional
+from typing import Optional, Protocol, Optional
 
 from app.config import get_settings
 from app.schemas.extraction_schema import ExtractionResult
