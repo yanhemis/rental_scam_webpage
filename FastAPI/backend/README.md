@@ -1,4 +1,9 @@
-실행순서 
+실행순서
+
+1. `.env.example`을 참고해 `.env`에 CLOVA Studio 설정을 입력한다.
+   - 실제 연동 시 `CLOVA_MOCK_ENABLED=false`
+   - `CLOVA_STUDIO_API_KEY`에는 발급받은 키를 입력
+   - `.env`는 Git에 커밋하지 않는다.
 
 압축해제한 venv 폴더를 backend 안에 집어넣기
 

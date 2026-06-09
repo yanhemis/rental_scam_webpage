@@ -7,6 +7,7 @@ const state = {
   completedChecks: new Set(),
   openedChecks: new Set(),
   uploadResult: null,
+  analysis: null,
   report: null,
 };
 
@@ -222,7 +223,9 @@ async function uploadSelectedFile() {
     const uploadResult = await response.json();
     state.uploadResult = uploadResult;
     state.documentId = uploadResult.document_id || DEMO_DOCUMENT_ID;
-    setStatus("업로드 분석 완료");
+    setStatus("CLOVA 위험 조항 분석 중");
+    state.analysis = await runAnalysis(state.documentId);
+    setStatus("CLOVA 위험 조항 분석 완료");
     await fetchReport(state.documentId);
   } catch (error) {
     state.documentId = DEMO_DOCUMENT_ID;
@@ -231,6 +234,24 @@ async function uploadSelectedFile() {
   } finally {
     elements.analyzeButton.disabled = false;
   }
+}
+
+async function runAnalysis(documentId) {
+  const response = await fetch(`${API_BASE}/analysis/run`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      document_id: documentId,
+      standard_contract_type: "jeonse_standard_v1",
+      include_legal_basis: true,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`analysis api ${response.status}`);
+  }
+  return response.json();
 }
 
 function normalizeReport(report) {

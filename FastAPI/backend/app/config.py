@@ -2,6 +2,11 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
 
 class Settings:
     project_name = "Jeonse Fraud Prevention API"
@@ -14,7 +19,18 @@ class Settings:
     upload_dir = Path(__file__).resolve().parents[1] / "uploads"
     standard_contract_dir = Path(__file__).resolve().parents[1] / "standards"
     retention_days = 1
-    clova_mock_enabled = True
+    clova_mock_enabled = os.getenv("CLOVA_MOCK_ENABLED", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    clova_studio_api_key = os.getenv("CLOVA_STUDIO_API_KEY") or None
+    clova_studio_base_url = os.getenv(
+        "CLOVA_STUDIO_BASE_URL",
+        "https://clovastudio.stream.ntruss.com",
+    ).rstrip("/")
+    clova_studio_model = os.getenv("CLOVA_STUDIO_MODEL", "HCX-007")
+    clova_studio_max_input_chars = int(os.getenv("CLOVA_STUDIO_MAX_INPUT_CHARS", "24000"))
     log_level = "INFO"
     metadata_storage_backend = "dynamodb"
     dynamodb_table_name = "jeonse-document-metadata"
@@ -24,7 +40,7 @@ class Settings:
     analysis_retry_attempts = 3
     retry_backoff_seconds = 1.0
     ocr_timeout_seconds = int(os.getenv("OCR_TIMEOUT_SECONDS", "90"))
-    analysis_timeout_seconds = 25
+    analysis_timeout_seconds = int(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "25"))
     max_concurrent_ocr_jobs = 4
     max_concurrent_analysis_jobs = 4
     extraction_cache_backend = os.getenv("EXTRACTION_CACHE_BACKEND", "memory")

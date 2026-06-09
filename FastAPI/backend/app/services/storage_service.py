@@ -65,6 +65,8 @@ def update_document_metadata(
     updates = record.model_dump()
     if payload.status is not None:
         updates["status"] = payload.status
+    if payload.analysis_provider is not None:
+        updates["analysis_provider"] = payload.analysis_provider
     if payload.analysis_status is not None:
         updates["analysis_status"] = payload.analysis_status
     if payload.report_status is not None:
@@ -134,6 +136,7 @@ def mark_document_completed(
     document_id: str,
     *,
     status: DocumentStatusType,
+    analysis_provider: str | None = None,
     analysis_status: str | None = None,
     extracted_text_quality: float | None = None,
 ) -> DocumentMetadataRecord | None:
@@ -144,6 +147,7 @@ def mark_document_completed(
     updated = record.model_copy(
         update={
             "status": status,
+            "analysis_provider": analysis_provider or record.analysis_provider,
             "analysis_status": analysis_status or record.analysis_status,
             "processing_finished_at": datetime.utcnow(),
             "next_retry_at": None,

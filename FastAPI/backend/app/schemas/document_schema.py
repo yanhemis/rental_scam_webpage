@@ -82,6 +82,7 @@ class DocumentMetadataSyncResponse(BaseModel):
 
 class DocumentStatusUpdateRequest(BaseModel):
     status: DocumentStatusType | None = None
+    analysis_provider: str | None = None
     analysis_status: str | None = None
     report_status: str | None = None
     user_id: str | None = None

@@ -7,13 +7,15 @@ from app.schemas.analysis_schema import AnalysisResponse, AnalysisStatusType, Cl
 from app.schemas.document_schema import DocumentStatusType
 from app.schemas.extraction_schema import ExtractedTextLocation
 from app.schemas.report_schema import ReportDifference, ReportResponse
-from app.services import metrics_service, storage_service
+from app.services import clova_studio_service, metrics_service, storage_service
+from app.services.clova_studio_service import ClovaStudioError
 from app.services.extraction_cache_service import get_cached_extraction
 from app.services.risk_score_service import calculate_risk_score, risk_delta_for_level
 from app.services.safety_checklist_service import build_default_safety_checklist
 
 settings = get_settings()
 ANALYSIS_SEMAPHORE = asyncio.Semaphore(settings.max_concurrent_analysis_jobs)
+_ANALYSIS_RESULTS: dict[str, AnalysisResponse] = {}
 
 
 def _find_locations_for_text(document_id: str, target_text: str) -> list[ExtractedTextLocation]:
@@ -70,10 +72,51 @@ def _generate_mock_analysis(document_id: str) -> AnalysisResponse:
     )
 
 
+def _generate_clova_analysis(
+    document_id: str,
+    *,
+    request_id: str,
+    include_legal_basis: bool,
+) -> AnalysisResponse:
+    record = storage_service.get_document_metadata(document_id)
+    cached = get_cached_extraction(
+        document_id=document_id,
+        content_hash=record.sha256 if record is not None else None,
+    )
+    if cached is None:
+        raise ClovaStudioError(
+            "Extracted contract text was not found. Upload the document again.",
+            retryable=False,
+        )
+
+    payload = clova_studio_service.analyze_contract(
+        cached.text,
+        request_id=request_id,
+        include_legal_basis=include_legal_basis,
+        settings=settings,
+    )
+    return AnalysisResponse(
+        document_id=document_id,
+        status=AnalysisStatusType.completed,
+        provider=f"clova-studio:{settings.clova_studio_model}",
+        extracted_text_quality=cached.quality,
+        clauses=payload.clauses,
+    )
+
+
+def get_analysis_result(document_id: str) -> AnalysisResponse | None:
+    return _ANALYSIS_RESULTS.get(document_id)
+
+
+def purge_analysis_result(document_id: str) -> None:
+    _ANALYSIS_RESULTS.pop(document_id, None)
+
+
 async def run_analysis_with_retry(
     *,
     document_id: str,
     request_id: str,
+    include_legal_basis: bool = True,
 ) -> AnalysisResponse:
     async with ANALYSIS_SEMAPHORE:
         storage_service.set_processing_state(
@@ -85,8 +128,25 @@ async def run_analysis_with_retry(
         for attempt in range(1, settings.analysis_retry_attempts + 1):
             started_at = datetime.utcnow()
             try:
+                analysis_callable = (
+                    _generate_mock_analysis
+                    if settings.clova_mock_enabled
+                    else _generate_clova_analysis
+                )
+                analysis_kwargs = (
+                    {}
+                    if settings.clova_mock_enabled
+                    else {
+                        "request_id": request_id,
+                        "include_legal_basis": include_legal_basis,
+                    }
+                )
                 response = await asyncio.wait_for(
-                    asyncio.to_thread(_generate_mock_analysis, document_id),
+                    asyncio.to_thread(
+                        analysis_callable,
+                        document_id,
+                        **analysis_kwargs,
+                    ),
                     timeout=settings.analysis_timeout_seconds,
                 )
                 finished_at = datetime.utcnow()
@@ -97,9 +157,11 @@ async def run_analysis_with_retry(
                 storage_service.mark_document_completed(
                     document_id,
                     status=DocumentStatusType.analysis_completed,
+                    analysis_provider=response.provider,
                     analysis_status=AnalysisStatusType.completed.value,
                     extracted_text_quality=response.extracted_text_quality,
                 )
+                _ANALYSIS_RESULTS[document_id] = response
                 metrics_service.record_metric("AnalysisSuccessCount")
                 log_event(
                     "analysis_completed",
@@ -110,8 +172,10 @@ async def run_analysis_with_retry(
                 )
                 return response
             except Exception as exc:
+                is_retryable = not isinstance(exc, ClovaStudioError) or exc.retryable
+                will_retry = is_retryable and attempt < settings.analysis_retry_attempts
                 next_retry_at = None
-                if attempt < settings.analysis_retry_attempts:
+                if will_retry:
                     next_retry_at = datetime.utcnow() + timedelta(
                         seconds=settings.retry_backoff_seconds * attempt
                     )
@@ -122,7 +186,6 @@ async def run_analysis_with_retry(
                     error_message=str(exc),
                     next_retry_at=next_retry_at,
                 )
-                metrics_service.record_metric("AnalysisRetryCount")
                 log_event(
                     "analysis_attempt_failed",
                     event="analysis_attempt_failed",
@@ -131,7 +194,7 @@ async def run_analysis_with_retry(
                     retry_count=attempt,
                     max_retry_count=settings.analysis_retry_attempts,
                 )
-                if attempt >= settings.analysis_retry_attempts:
+                if not will_retry:
                     storage_service.mark_document_failed(
                         document_id,
                         status=DocumentStatusType.failed,
@@ -140,9 +203,73 @@ async def run_analysis_with_retry(
                     )
                     metrics_service.record_metric("AnalysisFailureCount")
                     raise
+                metrics_service.record_metric("AnalysisRetryCount")
                 await asyncio.sleep(settings.retry_backoff_seconds * attempt)
 
     raise RuntimeError("Analysis did not complete.")
+
+
+def create_report(
+    document_id: str,
+    completed_check_ids: set[str] | None = None,
+) -> ReportResponse:
+    analysis = get_analysis_result(document_id)
+    if analysis is None:
+        return create_mock_report(document_id, completed_check_ids)
+
+    highlight_colors = {
+        "critical": "red",
+        "high": "red",
+        "medium": "orange",
+        "low": "yellow",
+        "info": "gray",
+    }
+    differences = [
+        ReportDifference(
+            category=clause.clause_title,
+            original_text=clause.diff_excerpt,
+            standard_text=clause.legal_basis or "전문가 검토 필요",
+            risk_level=clause.risk_level,
+            highlight_color=highlight_colors.get(clause.risk_level, "yellow"),
+            locations=_find_locations_for_text(document_id, clause.diff_excerpt),
+            special_term_explanation=clause.summary,
+            risk_score_delta=risk_delta_for_level(clause.risk_level),
+        )
+        for clause in analysis.clauses
+    ]
+    safety_checklist = build_default_safety_checklist(completed_check_ids)
+    risk_score = calculate_risk_score(
+        differences=differences,
+        safety_checklist=safety_checklist,
+    )
+    summary = (
+        f"CLOVA Studio가 검토가 필요한 계약 조항 {len(differences)}개를 찾았습니다."
+        if differences
+        else "CLOVA Studio 분석에서 명확한 위험 조항을 찾지 못했습니다."
+    )
+    recommended_actions = [
+        f"'{item.category}' 조항을 계약 체결 전에 전문가와 함께 확인하세요."
+        for item in differences[:5]
+    ]
+    if not recommended_actions:
+        recommended_actions = [
+            "AI 분석 결과만으로 계약 안전성을 확정하지 말고 등기부등본과 보증보험 가능 여부를 확인하세요."
+        ]
+
+    return ReportResponse(
+        document_id=document_id,
+        report_id=f"report-{document_id}",
+        summary=summary,
+        risk_overview=(
+            f"기본 위험 {risk_score.base_score}점에 분석 조항 위험 "
+            f"{risk_score.special_terms_delta}점이 더해졌고, 완료한 체크리스트로 "
+            f"{risk_score.checklist_reduction}점이 차감되었습니다."
+        ),
+        risk_score=risk_score,
+        differences=differences,
+        recommended_actions=recommended_actions,
+        safety_checklist=safety_checklist,
+    )
 
 
 def create_mock_report(
