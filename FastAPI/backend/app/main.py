@@ -1,4 +1,6 @@
 import time
+from app.db.base import Base
+from app.db.session import engine
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -21,6 +23,8 @@ app = FastAPI(
     description=settings.project_description,
     version=settings.version,
 )
+
+Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,

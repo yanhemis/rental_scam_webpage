@@ -1,22 +1,28 @@
-from enum import Enum
-
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 
-class SocialProviderType(str, Enum):
-    kakao = "kakao"
-    naver = "naver"
-    google = "google"
-    apple = "apple"
+class UserSignupRequest(BaseModel):
+    email: EmailStr
+    name: str
+    password: str
 
 
-class SocialLoginRequest(BaseModel):
-    provider: SocialProviderType
-    access_token: str
+class UserLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
 
 
 class UserResponse(BaseModel):
-    user_id: str
+    id: int
     email: str
-    provider: SocialProviderType
-    is_active: bool = True
+    name: str
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse

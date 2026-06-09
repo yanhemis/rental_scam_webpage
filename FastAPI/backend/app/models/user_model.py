@@ -1,19 +1,16 @@
-from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
+
+from app.db.session import Base
 
 
-class SocialProvider(str, Enum):
-    kakao = "kakao"
-    naver = "naver"
-    google = "google"
-    apple = "apple"
+class User(Base):
+    __tablename__ = "users"
 
-
-@dataclass(slots=True)
-class UserAccount:
-    user_id: str
-    email: str
-    provider: SocialProvider
-    is_active: bool = True
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    name = Column(String(100), nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
