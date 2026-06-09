@@ -210,6 +210,9 @@ def extract_contract_fields(
             "monthly_rent",
             ("월세", "차임", "월 차임", "월차임"),
         )
+        fields["contract_payment"] = _missing_field("contract_payment")
+        fields["intermediate_payment"] = _missing_field("intermediate_payment")
+        fields["balance_payment"] = _missing_field("balance_payment")
         start_date, end_date = _lease_period_fields(text, locations)
         fields["lease_start_date"] = start_date
         fields["lease_end_date"] = end_date
@@ -435,8 +438,25 @@ def _special_terms_field(text: str, locations: list[ExtractedTextLocation]) -> C
 
 
 def _risk_flags_field(text: str, locations: list[ExtractedTextLocation]) -> ContractFieldValue:
-    terms = ("반환 지연", "수선비", "원상복구", "근저당", "압류", "가압류", "위반건축물")
+    terms = (
+        "반환 지연",
+        "수선비",
+        "원상복구",
+        "근저당",
+        "압류",
+        "가압류",
+        "위반건축물",
+        "중개보수",
+        "증개보수",
+        "중개보스",
+        "거래가액",
+        "거라가먹",
+        "거라 가먹",
+    )
     hits = [term for term in terms if term.replace(" ", "") in _compact(text)]
+    if any(term in _compact(text) for term in ("중개보수", "증개보수", "중개보스")):
+        hits.append("중개보수 0.9% 확인")
+    hits = list(dict.fromkeys(hits))
     if not hits:
         return _field([], "없음", 0.5, True, [])
     return _field(hits, ", ".join(hits), 0.7, True, _evidence(locations, tuple(hits), " ".join(hits)))
@@ -486,6 +506,8 @@ def _extract_axis_field_candidates(
 
     lines = _group_axis_lines(locations)
     candidates: dict[str, ContractFieldValue] = {}
+    table_candidates = _extract_payment_table_candidates(lines)
+    candidates.update(table_candidates)
 
     for line_index, line in enumerate(lines):
         line_text = _line_text(line)
@@ -518,7 +540,7 @@ def _extract_axis_field_candidates(
                 _line_text(item)
                 for item in lines[line_index : min(len(lines), line_index + 3)]
             )
-            dates = list(_iter_dates(period_context))
+            dates = list(_iter_dates(period_context)) or _iter_noisy_dates(period_context)
             if len(dates) >= 2 and dates[0][1] != dates[1][1]:
                 evidence_locations = _merge_location_window(lines[line_index : min(len(lines), line_index + 3)])
                 evidence = _axis_evidence(evidence_locations, "임대차기간", f"{dates[0][0]} {dates[1][0]}", 0.78)
@@ -545,6 +567,138 @@ def _extract_axis_field_candidates(
                 )
 
     return candidates
+
+
+PAYMENT_ROW_FIELDS = (
+    "deposit_amount",
+    "contract_payment",
+    "intermediate_payment",
+    "balance_payment",
+    "monthly_rent",
+)
+
+
+def _extract_payment_table_candidates(
+    lines: list[list[ExtractedTextLocation]],
+) -> dict[str, ContractFieldValue]:
+    best_candidates: dict[str, ContractFieldValue] = {}
+    best_score = 0
+
+    page_numbers = sorted({line[0].page_number for line in lines if line})
+    for page_number in page_numbers:
+        page_lines = [line for line in lines if line and line[0].page_number == page_number]
+        table_start = _find_contract_table_start(page_lines)
+        if table_start is None:
+            continue
+
+        amount_rows: list[tuple[int, list[ExtractedTextLocation], int]] = []
+        for line in page_lines[table_start + 1 : min(len(page_lines), table_start + 12)]:
+            text = _line_text(line)
+            if _looks_like_article_two(text):
+                break
+            amount = _best_amount_in_line(text)
+            if amount is None:
+                continue
+            amount_rows.append((amount, line, _amount_quality(text, amount)))
+
+        if len(amount_rows) < 2:
+            continue
+
+        page_candidates: dict[str, ContractFieldValue] = {}
+        row_fields = _payment_row_fields_for_amounts(amount_rows)
+        for field_id, (amount, line, quality) in zip(row_fields, amount_rows):
+            if not _amount_in_expected_range(field_id, amount):
+                continue
+            confidence = min(0.9, 0.72 + quality * 0.03)
+            page_candidates[field_id] = _axis_field(
+                amount,
+                _format_won(amount),
+                confidence,
+                line,
+                field_id,
+            )
+
+        period = _extract_period_after_contract_table(page_lines, table_start)
+        if period:
+            start, end, evidence_locations = period
+            evidence = _axis_evidence(evidence_locations, "임대차기간", f"{start[0]} {end[0]}", 0.8)
+            page_candidates["lease_start_date"] = _field(start[1], start[1], 0.8, False, evidence)
+            page_candidates["lease_end_date"] = _field(end[1], end[1], 0.8, False, evidence)
+
+        score = len(page_candidates) + sum(1 for key in ("deposit_amount", "monthly_rent") if key in page_candidates)
+        if score > best_score:
+            best_candidates = page_candidates
+            best_score = score
+
+    return best_candidates
+
+
+def _find_contract_table_start(lines: list[list[ExtractedTextLocation]]) -> int | None:
+    for index, line in enumerate(lines):
+        text = _compact(_line_text(line))
+        if "계약내용" in text and "2" in text:
+            return index
+    for index, line in enumerate(lines):
+        text = _compact(_line_text(line))
+        if "계약내용" in text:
+            return index
+    return None
+
+
+def _payment_row_fields_for_amounts(
+    amount_rows: list[tuple[int, list[ExtractedTextLocation], int]],
+) -> tuple[str, ...]:
+    if len(amount_rows) == 4:
+        return ("deposit_amount", "contract_payment", "balance_payment", "monthly_rent")
+    if len(amount_rows) == 3:
+        return ("deposit_amount", "balance_payment", "monthly_rent")
+    return PAYMENT_ROW_FIELDS[: len(amount_rows)]
+
+
+def _looks_like_article_two(text: str) -> bool:
+    compact = _compact(text)
+    return "제2조" in compact or "존속기간" in compact or "존숙기간" in compact
+
+
+def _best_amount_in_line(text: str) -> int | None:
+    amounts: list[int] = []
+    for match in re.finditer(r"[0-9][0-9,./\\s]{3,}[0-9]", text):
+        raw = match.group(0)
+        digits = re.sub(r"\D", "", raw)
+        if len(digits) >= 4:
+            amounts.append(int(digits))
+    korean_amount = _extract_amount_from_text(text)
+    if korean_amount is not None:
+        amounts.append(korean_amount)
+    if not amounts:
+        return None
+    return max(amounts)
+
+
+def _amount_quality(text: str, amount: int) -> int:
+    quality = 0
+    if "," in text:
+        quality += 2
+    if "W" in text or "원" in text or "정" in text:
+        quality += 1
+    if amount >= 100_000:
+        quality += 1
+    return quality
+
+
+def _extract_period_after_contract_table(
+    lines: list[list[ExtractedTextLocation]],
+    table_start: int,
+) -> tuple[tuple[str, str, int], tuple[str, str, int], list[ExtractedTextLocation]] | None:
+    for index, line in enumerate(lines[table_start + 1 : min(len(lines), table_start + 16)], start=table_start + 1):
+        if not _looks_like_article_two(_line_text(line)):
+            continue
+        evidence_lines = lines[index : min(len(lines), index + 3)]
+        context = " ".join(_line_text(item) for item in evidence_lines)
+        dates = list(_iter_dates(context)) or _iter_noisy_dates(context)
+        if len(dates) >= 2 and dates[0][1] != dates[1][1]:
+            return dates[0], dates[1], _merge_location_window(evidence_lines)
+    return None
 
 
 def _group_axis_lines(locations: list[ExtractedTextLocation]) -> list[list[ExtractedTextLocation]]:
@@ -750,6 +904,19 @@ def _iter_dates(text: str):
     for match in pattern.finditer(text):
         year, month, day = match.groups()
         yield match.group(0), f"{year}.{int(month):02d}.{int(day):02d}", match.start()
+
+
+def _iter_noisy_dates(text: str) -> list[tuple[str, str, int]]:
+    dates: list[tuple[str, str, int]] = []
+    pattern = re.compile(r"(20\d{2})[^0-9]{0,8}(\d{1,2})[^0-9]{0,8}(\d{1,2})")
+    for match in pattern.finditer(text):
+        year, month, day = match.groups()
+        month_value = int(month)
+        day_value = int(day)
+        if not (1 <= month_value <= 12 and 1 <= day_value <= 31):
+            continue
+        dates.append((match.group(0), f"{year}.{month_value:02d}.{day_value:02d}", match.start()))
+    return dates
 
 
 def _find_date_pair_near_period_label(text: str, date_matches: list[tuple[str, str, int]]):
