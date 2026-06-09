@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime, timedelta
 
 from app.config import get_settings
@@ -17,7 +18,7 @@ class InMemoryDocumentMetadataRepository:
         self._store[record.document_id] = record
         return record
 
-    def get(self, document_id: str) -> DocumentMetadataRecord | None:
+    def get(self, document_id: str) -> Optional[DocumentMetadataRecord]:
         return self._store.get(document_id)
 
     def list(self) -> DocumentMetadataListResponse:
@@ -32,7 +33,7 @@ class InMemoryDocumentMetadataRepository:
 _repository = InMemoryDocumentMetadataRepository()
 
 
-def build_deletion_schedule(from_time: datetime | None = None) -> datetime:
+def build_deletion_schedule(from_time: Optional[datetime] = None) -> datetime:
     settings = get_settings()
     base_time = from_time or datetime.utcnow()
     return base_time + timedelta(days=settings.retention_days)
@@ -42,7 +43,7 @@ def save_document_metadata(record: DocumentMetadataRecord) -> DocumentMetadataRe
     return _repository.save(record)
 
 
-def get_document_metadata(document_id: str) -> DocumentMetadataRecord | None:
+def get_document_metadata(document_id: str) -> Optional[DocumentMetadataRecord]:
     return _repository.get(document_id)
 
 
@@ -57,7 +58,7 @@ def replace_document_metadata(record: DocumentMetadataRecord) -> DocumentMetadat
 def update_document_metadata(
     document_id: str,
     payload: DocumentStatusUpdateRequest,
-) -> DocumentMetadataRecord | None:
+) -> Optional[DocumentMetadataRecord]:
     record = _repository.get(document_id)
     if record is None:
         return None
@@ -88,9 +89,9 @@ def update_document_metadata(
 def set_processing_state(
     document_id: str,
     *,
-    status: DocumentStatusType | None = None,
-    analysis_status: str | None = None,
-) -> DocumentMetadataRecord | None:
+    status: Optional[DocumentStatusType] = None,
+    analysis_status: Optional[str] = None,
+) -> Optional[DocumentMetadataRecord]:
     record = _repository.get(document_id)
     if record is None:
         return None
@@ -113,8 +114,8 @@ def record_retry_attempt(
     attempt: int,
     max_attempts: int,
     error_message: str,
-    next_retry_at: datetime | None,
-) -> DocumentMetadataRecord | None:
+    next_retry_at: Optional[datetime],
+) -> Optional[DocumentMetadataRecord]:
     record = _repository.get(document_id)
     if record is None:
         return None
@@ -136,10 +137,10 @@ def mark_document_completed(
     document_id: str,
     *,
     status: DocumentStatusType,
-    analysis_provider: str | None = None,
-    analysis_status: str | None = None,
-    extracted_text_quality: float | None = None,
-) -> DocumentMetadataRecord | None:
+    analysis_provider: Optional[str] = None,
+    analysis_status: Optional[str] = None,
+    extracted_text_quality: Optional[float] = None,
+) -> Optional[DocumentMetadataRecord]:
     record = _repository.get(document_id)
     if record is None:
         return None
@@ -163,9 +164,9 @@ def mark_document_failed(
     document_id: str,
     *,
     status: DocumentStatusType,
-    analysis_status: str | None,
+    analysis_status: Optional[str],
     error_message: str,
-) -> DocumentMetadataRecord | None:
+) -> Optional[DocumentMetadataRecord]:
     record = _repository.get(document_id)
     if record is None:
         return None
@@ -184,7 +185,7 @@ def mark_document_failed(
     return _repository.save(updated)
 
 
-def mark_document_deleted(document_id: str) -> DocumentMetadataRecord | None:
+def mark_document_deleted(document_id: str) -> Optional[DocumentMetadataRecord]:
     record = _repository.get(document_id)
     if record is None:
         return None
@@ -215,7 +216,7 @@ def build_dynamodb_item(record: DocumentMetadataRecord) -> dict[str, object]:
     }
 
 
-def build_document_sync_payload(document_id: str) -> DocumentMetadataSyncResponse | None:
+def build_document_sync_payload(document_id: str) -> Optional[DocumentMetadataSyncResponse]:
     record = _repository.get(document_id)
     if record is None:
         return None

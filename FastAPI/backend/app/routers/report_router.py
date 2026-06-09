@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, Query
 
 from app.schemas.report_schema import ReportResponse
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 @router.get("/{document_id}", response_model=ReportResponse)
 async def get_report(
     document_id: str,
-    completed_checks: list[str] | None = Query(default=None),
+    completed_checks: Optional[list[str]] = Query(default=None),
 ):
     return create_report(
         document_id,

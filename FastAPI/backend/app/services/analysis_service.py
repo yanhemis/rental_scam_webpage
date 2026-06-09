@@ -1,3 +1,4 @@
+from typing import Optional
 import asyncio
 from datetime import datetime, timedelta
 
@@ -104,7 +105,7 @@ def _generate_clova_analysis(
     )
 
 
-def get_analysis_result(document_id: str) -> AnalysisResponse | None:
+def get_analysis_result(document_id: str) -> Optional[AnalysisResponse]:
     return _ANALYSIS_RESULTS.get(document_id)
 
 
@@ -211,7 +212,7 @@ async def run_analysis_with_retry(
 
 def create_report(
     document_id: str,
-    completed_check_ids: set[str] | None = None,
+    completed_check_ids: Optional[set[str]] = None,
 ) -> ReportResponse:
     analysis = get_analysis_result(document_id)
     if analysis is None:
@@ -274,7 +275,7 @@ def create_report(
 
 def create_mock_report(
     document_id: str,
-    completed_check_ids: set[str] | None = None,
+    completed_check_ids: Optional[set[str]] = None,
 ) -> ReportResponse:
     repair_text = "퇴거 시 일체의 수선비를 임차인이 부담한다"
     deposit_text = "임대인의 사정에 따라 반환일을 조정할 수 있다"

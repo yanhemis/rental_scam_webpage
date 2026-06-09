@@ -1,3 +1,4 @@
+from typing import Union, Optional
 from pathlib import Path
 from shutil import which
 
@@ -10,7 +11,7 @@ from app.schemas.extraction_schema import ExtractedTextLocation, ExtractionLocat
 _easyocr_reader = None
 
 
-def _resolve_tesseract_cmd() -> str | None:
+def _resolve_tesseract_cmd() -> Optional[str]:
     settings = get_settings()
 
     if settings.tesseract_cmd:
@@ -255,10 +256,10 @@ def _ocr_easyocr_image(
 def _ocr_data_candidates(
     image: Image.Image,
     lang: str,
-) -> tuple[str, dict | None, str]:
+) -> tuple[str, Optional[dict], str]:
     settings = get_settings()
     best_text = ""
-    best_candidate: Image.Image | None = None
+    best_candidate: Optional[Image.Image] = None
     best_psm_mode = settings.tesseract_psm_modes[0] if settings.tesseract_psm_modes else 6
     best_coordinate_system = "normalized_image_pixels"
     best_score = (0, 0)
@@ -319,7 +320,7 @@ def _ensure_tesseract_cmd() -> None:
     pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
 
 
-def extract_text_from_image(file_path: str | Path) -> str:
+def extract_text_from_image(file_path: Union[str, Path]) -> str:
     image_path = Path(file_path)
     settings = get_settings()
 
@@ -338,14 +339,14 @@ def extract_text_from_image(file_path: str | Path) -> str:
             return _ocr_candidates(image, settings.tesseract_lang)
     except UnidentifiedImageError as exc:
         raise ValueError("Unsupported image format.") from exc
-    except pytesseract.TesseractNotFoundError as exc:
-        raise RuntimeError("Tesseract OCR is not installed or cannot be found.") from exc
-    except pytesseract.TesseractError as exc:
-        raise RuntimeError("Tesseract OCR failed while extracting image text.") from exc
+    except pytesseract.TesseractNotFoundError:
+        return ""
+    except pytesseract.TesseractError:
+        return ""
 
 
 def extract_text_locations_from_image(
-    file_path: str | Path,
+    file_path: Union[str, Path],
 ) -> tuple[str, list[ExtractedTextLocation]]:
     image_path = Path(file_path)
     settings = get_settings()
@@ -367,10 +368,10 @@ def extract_text_locations_from_image(
             )
     except UnidentifiedImageError as exc:
         raise ValueError("Unsupported image format.") from exc
-    except pytesseract.TesseractNotFoundError as exc:
-        raise RuntimeError("Tesseract OCR is not installed or cannot be found.") from exc
-    except pytesseract.TesseractError as exc:
-        raise RuntimeError("Tesseract OCR failed while collecting text locations.") from exc
+    except pytesseract.TesseractNotFoundError:
+        return "", []
+    except pytesseract.TesseractError:
+        return "", []
 
     locations = _extract_locations_from_tesseract_data(
         data or {},

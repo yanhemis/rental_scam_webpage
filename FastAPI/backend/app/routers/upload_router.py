@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime
 from uuid import uuid4
 
@@ -20,8 +21,8 @@ router = APIRouter(tags=["documents"])
 
 
 def _detect_document_source(
-    content_type: str | None,
-    source: DocumentSourceType | None,
+    content_type: Optional[str],
+    source: Optional[DocumentSourceType],
 ) -> DocumentSourceType:
     if source is not None:
         return source
@@ -34,8 +35,8 @@ async def _handle_upload(
     request: Request,
     file: UploadFile,
     settings: Settings,
-    source: DocumentSourceType | None,
-    user_id: str | None,
+    source: Optional[DocumentSourceType],
+    user_id: Optional[str],
 ) -> DocumentUploadResponse:
     request_id = getattr(request.state, "request_id", get_request_id())
 
@@ -149,8 +150,8 @@ async def _handle_upload(
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
-    source: DocumentSourceType | None = Form(default=None),
-    user_id: str | None = Form(default=None),
+    source: Optional[DocumentSourceType] = Form(default=None),
+    user_id: Optional[str] = Form(default=None),
     settings: Settings = Depends(get_app_settings),
 ):
     return await _handle_upload(request, file, settings, source, user_id)
@@ -160,8 +161,8 @@ async def upload_document(
 async def upload_document_legacy(
     request: Request,
     file: UploadFile = File(...),
-    source: DocumentSourceType | None = Form(default=None),
-    user_id: str | None = Form(default=None),
+    source: Optional[DocumentSourceType] = Form(default=None),
+    user_id: Optional[str] = Form(default=None),
     settings: Settings = Depends(get_app_settings),
 ):
     return await _handle_upload(request, file, settings, source, user_id)

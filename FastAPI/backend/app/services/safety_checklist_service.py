@@ -1,3 +1,4 @@
+from typing import Optional
 from app.schemas.report_schema import (
     ChecklistExternalAction,
     SafetyChecklistGroup,
@@ -6,7 +7,7 @@ from app.schemas.report_schema import (
 
 
 def build_default_safety_checklist(
-    completed_check_ids: set[str] | None = None,
+    completed_check_ids: Optional[set[str]] = None,
 ) -> list[SafetyChecklistGroup]:
     completed_check_ids = completed_check_ids or set()
 
@@ -19,9 +20,9 @@ def build_default_safety_checklist(
         priority: str,
         stage: str,
         risk_reduction_points: int,
-        action_label: str | None = None,
-        official_url: str | None = None,
-        completion_hint: str | None = None,
+        action_label: Optional[str] = None,
+        official_url: Optional[str] = None,
+        completion_hint: Optional[str] = None,
     ) -> SafetyChecklistItem:
         external_action = None
         if official_url and action_label:

@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime, timezone
 
 from app.config import get_settings
@@ -10,7 +11,7 @@ def record_metric(
     metric_name: str,
     value: float = 1.0,
     unit: str = "Count",
-    dimensions: dict[str, str] | None = None,
+    dimensions: Optional[dict[str, str]] = None,
 ) -> None:
     settings = get_settings()
     if not settings.metrics_enabled:

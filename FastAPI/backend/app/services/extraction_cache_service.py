@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Protocol
+from typing import Protocol, Optional
 
 from app.config import get_settings
 from app.schemas.extraction_schema import ExtractionResult
 
 
 class ExtractionCacheBackend(Protocol):
-    def get_by_document_id(self, document_id: str) -> ExtractionResult | None:
+    def get_by_document_id(self, document_id: str) -> Optional[ExtractionResult]:
         ...
 
-    def get_by_content_hash(self, content_hash: str) -> ExtractionResult | None:
+    def get_by_content_hash(self, content_hash: str) -> Optional[ExtractionResult]:
         ...
 
     def set(self, result: ExtractionResult) -> None:
@@ -33,7 +33,7 @@ class InMemoryExtractionCacheBackend:
     def _is_expired(self, expires_at: datetime) -> bool:
         return expires_at <= datetime.utcnow()
 
-    def get_by_document_id(self, document_id: str) -> ExtractionResult | None:
+    def get_by_document_id(self, document_id: str) -> Optional[ExtractionResult]:
         cached = self._by_document_id.get(document_id)
         if cached is None:
             return None
@@ -45,7 +45,7 @@ class InMemoryExtractionCacheBackend:
 
         return result.model_copy(update={"cache_hit": True})
 
-    def get_by_content_hash(self, content_hash: str) -> ExtractionResult | None:
+    def get_by_content_hash(self, content_hash: str) -> Optional[ExtractionResult]:
         document_id = self._hash_to_document_id.get(content_hash)
         if document_id is None:
             return None
@@ -72,8 +72,8 @@ _backend: ExtractionCacheBackend = InMemoryExtractionCacheBackend()
 def get_cached_extraction(
     *,
     document_id: str,
-    content_hash: str | None = None,
-) -> ExtractionResult | None:
+    content_hash: Optional[str] = None,
+) -> Optional[ExtractionResult]:
     cached = _backend.get_by_document_id(document_id)
     if cached is not None:
         return cached
