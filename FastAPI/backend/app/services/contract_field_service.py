@@ -34,6 +34,11 @@ PROFILE_SPECS: dict[ContractDocumentType, ContractProfileSpec] = {
             "address",
         ),
         likely_fields=(
+            "land_area",
+            "building_info",
+            "lease_area",
+            "contract_payment",
+            "balance_payment",
             "confirmed_date_status",
             "move_in_report_status",
             "priority_rights",
@@ -54,6 +59,11 @@ PROFILE_SPECS: dict[ContractDocumentType, ContractProfileSpec] = {
             "address",
         ),
         likely_fields=(
+            "land_area",
+            "building_info",
+            "lease_area",
+            "contract_payment",
+            "balance_payment",
             "maintenance_fee",
             "payment_due_day",
             "confirmed_date_status",
@@ -75,6 +85,11 @@ PROFILE_SPECS: dict[ContractDocumentType, ContractProfileSpec] = {
             "address",
         ),
         likely_fields=(
+            "land_area",
+            "building_info",
+            "lease_area",
+            "contract_payment",
+            "balance_payment",
             "maintenance_fee",
             "payment_due_day",
             "confirmed_date_status",
@@ -97,6 +112,9 @@ PROFILE_SPECS: dict[ContractDocumentType, ContractProfileSpec] = {
             "ownership_transfer_date",
         ),
         likely_fields=(
+            "land_area",
+            "building_info",
+            "lease_area",
             "intermediate_payment",
             "mortgage_status",
             "registration_status",
@@ -120,6 +138,9 @@ FIELD_LABELS: dict[str, str] = {
     "landlord_name": "임대인",
     "tenant_name": "임차인",
     "address": "주소",
+    "land_area": "토지",
+    "building_info": "건물",
+    "lease_area": "임대할 부분",
     "confirmed_date_status": "확정일자",
     "move_in_report_status": "전입신고",
     "priority_rights": "선순위 권리",
@@ -235,6 +256,9 @@ def extract_contract_fields(
         fields["buyer_name"] = _party_name_field(text, locations, "buyer_name", ("매수인",))
 
     fields["address"] = _address_field(text, locations)
+    fields["land_area"] = _missing_field("land_area")
+    fields["building_info"] = _missing_field("building_info")
+    fields["lease_area"] = _missing_field("lease_area")
     fields["confirmed_date_status"] = _status_field(text, locations, "confirmed_date_status", ("확정일자",))
     fields["move_in_report_status"] = _status_field(text, locations, "move_in_report_status", ("전입신고", "주민등록"))
     fields["priority_rights"] = _status_field(text, locations, "priority_rights", ("선순위", "근저당", "가압류", "압류"))
@@ -509,6 +533,10 @@ def _extract_axis_field_candidates(
     candidates: dict[str, ContractFieldValue] = {}
     table_candidates = _extract_payment_table_candidates(lines)
     candidates.update(table_candidates)
+    property_candidates = _extract_property_display_candidates(lines)
+    candidates.update(property_candidates)
+    special_candidates = _extract_special_term_candidates(lines)
+    candidates.update(special_candidates)
 
     for line_index, line in enumerate(lines):
         line_text = _line_text(line)
@@ -568,6 +596,102 @@ def _extract_axis_field_candidates(
                 )
 
     return candidates
+
+
+def _extract_special_term_candidates(
+    lines: list[list[ExtractedTextLocation]],
+) -> dict[str, ContractFieldValue]:
+    for index, line in enumerate(lines):
+        compact = _compact(_line_text(line))
+        if not _looks_like_special_term_start(compact):
+            continue
+        locations = _collect_special_term_locations(lines, index)
+        text = re.sub(r"\s+", " ", " ".join(item.text for item in locations)).strip()
+        if len(text) < 12:
+            continue
+        return {
+            "special_terms": _axis_field(
+                text[:500],
+                "특약 추출",
+                0.76,
+                locations,
+                "special_terms",
+            )
+        }
+    return {}
+
+
+def _looks_like_special_term_start(compact_text: str) -> bool:
+    terms = (
+        "특약",
+        "특약사항",
+        "원상복구",
+        "수선비",
+        "보증금반환",
+        "반환지연",
+        "중개보수",
+        "증개보수",
+    )
+    return any(term in compact_text for term in terms)
+
+
+def _extract_property_display_candidates(
+    lines: list[list[ExtractedTextLocation]],
+) -> dict[str, ContractFieldValue]:
+    best_candidates: dict[str, ContractFieldValue] = {}
+    best_score = 0
+    page_numbers = sorted({line[0].page_number for line in lines if line})
+    for page_number in page_numbers:
+        page_lines = [line for line in lines if line and line[0].page_number == page_number]
+        start = _find_property_display_start(page_lines)
+        end = _find_contract_table_start(page_lines)
+        if start is None or end is None or end <= start:
+            continue
+
+        page_candidates: dict[str, ContractFieldValue] = {}
+        for line in page_lines[start + 1 : end]:
+            text = _line_text(line)
+            field_id = _property_field_for_line(text)
+            if not field_id or field_id in page_candidates:
+                continue
+            display = re.sub(r"\s+", " ", text).strip()
+            if len(display) < 4:
+                continue
+            page_candidates[field_id] = _axis_field(display[:160], display[:160], 0.74, line, field_id)
+
+        score = sum(1 for key in ("land_area", "building_info", "lease_area") if key in page_candidates)
+        if score > best_score:
+            best_candidates = page_candidates
+            best_score = score
+        if score == 3:
+            break
+    return best_candidates
+
+
+def _find_property_display_start(lines: list[list[ExtractedTextLocation]]) -> int | None:
+    for index, line in enumerate(lines):
+        compact = _compact(_line_text(line))
+        if "부동산의표시" in compact or ("부동산" in compact and "표시" in compact):
+            return index
+    for index, line in enumerate(lines[:8]):
+        compact = _compact(_line_text(line))
+        if "소재지" in compact or "소제지" in compact:
+            return max(0, index - 1)
+    return None
+
+
+def _property_field_for_line(text: str) -> str | None:
+    compact = _compact(text)
+    if any(term in compact for term in ("소재지", "소제지", "주소")):
+        return None
+    if "토지" in compact or "지목" in compact or "지면적" in compact:
+        return "land_area"
+    if "건물" in compact or "건문" in compact or ("구조" in compact and "용도" in compact):
+        return "building_info"
+    lease_terms = ("임대할부분", "임대할", "임대부분", "임대합부분", "입대합부분")
+    if any(term in compact for term in lease_terms) or ("임대" in compact and "부분" in compact):
+        return "lease_area"
+    return None
 
 
 PAYMENT_ROW_FIELDS = (
@@ -842,6 +966,9 @@ def _extract_amount_from_text(text: str) -> Optional[int]:
     number_match = re.search(r"([0-9][0-9,]{3,})", text)
     if number_match:
         return int(re.sub(r"\D", "", number_match.group(1)))
+    readable_korean_amount = _extract_korean_amount_from_text(text)
+    if readable_korean_amount is not None:
+        return readable_korean_amount
 
     korean_match = re.search(r"([일이삼사오육륙칠팔구십백천만억한공영\s]+)원?", text)
     if korean_match:
@@ -893,6 +1020,73 @@ def _parse_korean_amount(value: str) -> Optional[int]:
         if char in LARGE_UNITS:
             section += number
             total += (section or 1) * LARGE_UNITS[char]
+            section = 0
+            number = 0
+            found = True
+    amount = total + section + number
+    return amount if found and amount > 0 else None
+
+
+READABLE_KOREAN_DIGITS = {
+    "\uc601": 0,
+    "\uacf5": 0,
+    "\uc77c": 1,
+    "\ud55c": 1,
+    "\uc774": 2,
+    "\ub450": 2,
+    "\uc0bc": 3,
+    "\uc0ac": 4,
+    "\uc624": 5,
+    "\uc721": 6,
+    "\ub959": 6,
+    "\uce60": 7,
+    "\ud314": 8,
+    "\uad6c": 9,
+}
+READABLE_SMALL_UNITS = {"\uc2ed": 10, "\ubc31": 100, "\ucc9c": 1000}
+READABLE_LARGE_UNITS = {"\ub9cc": 10_000, "\uc5b5": 100_000_000}
+READABLE_AMOUNT_CHARS = "".join(
+    list(READABLE_KOREAN_DIGITS)
+    + list(READABLE_SMALL_UNITS)
+    + list(READABLE_LARGE_UNITS)
+    + ["\uae08", "\uc6d0", "\uc815"]
+)
+
+
+def _extract_korean_amount_from_text(text: str) -> Optional[int]:
+    candidates: list[int] = []
+    pattern = re.compile(rf"[\s{re.escape(READABLE_AMOUNT_CHARS)}]{{2,}}")
+    for match in pattern.finditer(text):
+        amount = _parse_readable_korean_amount(match.group(0))
+        if amount is not None:
+            candidates.append(amount)
+    return max(candidates) if candidates else None
+
+
+def _parse_readable_korean_amount(value: str) -> Optional[int]:
+    compact_value = re.sub(r"[\s,·ㆍ:：()]", "", value or "")
+    compact_value = re.sub(r"^(?:\uc77c\uae08|\uae08)", "", compact_value)
+    compact_value = re.sub(r"(?:\uc6d0|\uc815)$", "", compact_value)
+    if not compact_value or not any(unit in compact_value for unit in READABLE_LARGE_UNITS):
+        return None
+
+    total = 0
+    section = 0
+    number = 0
+    found = False
+    for char in compact_value:
+        if char in READABLE_KOREAN_DIGITS:
+            number = READABLE_KOREAN_DIGITS[char]
+            found = True
+            continue
+        if char in READABLE_SMALL_UNITS:
+            section += (number or 1) * READABLE_SMALL_UNITS[char]
+            number = 0
+            found = True
+            continue
+        if char in READABLE_LARGE_UNITS:
+            section += number
+            total += (section or 1) * READABLE_LARGE_UNITS[char]
             section = 0
             number = 0
             found = True

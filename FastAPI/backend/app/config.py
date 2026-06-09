@@ -56,7 +56,7 @@ class Settings:
     ).lower() in {"1", "true", "yes"}
     tesseract_cmd = os.getenv("TESSERACT_CMD") or None
     tesseract_lang = os.getenv("TESSERACT_LANG", "kor+eng")
-    local_ocr_provider = os.getenv("LOCAL_OCR_PROVIDER", "tesseract").lower()
+    local_ocr_provider = os.getenv("LOCAL_OCR_PROVIDER", "easyocr").lower()
     # Mobile handwriting tuning: enlarge small captures, trim noisy borders,
     # and test multiple segmentation/rotation candidates.
     ocr_upscale_factor = float(os.getenv("OCR_UPSCALE_FACTOR", "2.0"))

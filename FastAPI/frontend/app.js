@@ -1,4 +1,4 @@
-const API_BASE = "http://3.229.176.126:8000/api";
+const API_BASE = new URLSearchParams(window.location.search).get("api") || "http://3.229.176.126:8000/api";
 const DEMO_DOCUMENT_ID = "demo-document";
 
 const state = {
@@ -31,6 +31,7 @@ const elements = {
   specialTerms: document.querySelector("#special-terms"),
   documentViewer: document.querySelector("#document-viewer"),
   downloadReport: document.querySelector("#download-report"),
+  fieldSummaryList: document.querySelector(".info-list"),
   contractType: document.querySelector("#contract-type"),
   deposit: document.querySelector("#deposit"),
   leasePeriod: document.querySelector("#lease-period"),
@@ -49,6 +50,99 @@ const elements = {
   signupPassword: document.querySelector("#signup-password"),
   signupButton: document.querySelector("#signup-button"),
   logoutButton: document.querySelector("#logout-button"),
+};
+
+const SUMMARY_FIELD_LABELS = {
+  contract_type: "계약 유형",
+  address: "소재지",
+  land_area: "토지",
+  building_info: "건물",
+  lease_area: "임대할 부분",
+  deposit_amount: "보증금",
+  monthly_rent: "월 차임",
+  sale_price: "매매대금",
+  contract_payment: "계약금",
+  intermediate_payment: "중도금",
+  balance_payment: "잔금",
+  lease_period: "임대차 기간",
+  lease_start_date: "시작일",
+  lease_end_date: "종료일",
+  ownership_transfer_date: "소유권 이전일",
+  landlord_name: "임대인",
+  tenant_name: "임차인",
+  seller_name: "매도인",
+  buyer_name: "매수인",
+  confirmed_date_status: "확정일자",
+  move_in_report_status: "전입신고",
+  priority_rights: "선순위 권리",
+  special_terms: "특약",
+};
+
+const SUMMARY_FIELDS_BY_TYPE = {
+  jeonse: [
+    "contract_type",
+    "address",
+    "land_area",
+    "building_info",
+    "lease_area",
+    "deposit_amount",
+    "contract_payment",
+    "balance_payment",
+    "lease_period",
+    "confirmed_date_status",
+    "move_in_report_status",
+    "priority_rights",
+  ],
+  monthly_rent: [
+    "contract_type",
+    "address",
+    "land_area",
+    "building_info",
+    "lease_area",
+    "deposit_amount",
+    "monthly_rent",
+    "contract_payment",
+    "balance_payment",
+    "lease_period",
+    "confirmed_date_status",
+    "move_in_report_status",
+  ],
+  mixed_rent: [
+    "contract_type",
+    "address",
+    "land_area",
+    "building_info",
+    "lease_area",
+    "deposit_amount",
+    "monthly_rent",
+    "contract_payment",
+    "balance_payment",
+    "lease_period",
+    "priority_rights",
+  ],
+  sale: [
+    "contract_type",
+    "address",
+    "land_area",
+    "building_info",
+    "lease_area",
+    "sale_price",
+    "contract_payment",
+    "intermediate_payment",
+    "balance_payment",
+    "ownership_transfer_date",
+  ],
+  unknown: [
+    "contract_type",
+    "address",
+    "land_area",
+    "building_info",
+    "lease_area",
+    "deposit_amount",
+    "monthly_rent",
+    "sale_price",
+    "lease_period",
+  ],
 };
 
 const fallbackReport = {
@@ -427,7 +521,23 @@ function render() {
 }
 
 function renderExtractedSummary() {
-  const extraction = extractStructuredKeyInfo(state.uploadResult?.contract_fields) || extractKeyInfo(state.uploadResult?.full_text || "");
+  const structuredItems = buildStructuredSummaryItems(state.uploadResult?.contract_fields);
+  if (structuredItems.length && elements.fieldSummaryList) {
+    elements.fieldSummaryList.innerHTML = "";
+    structuredItems.forEach((item) => {
+      const row = document.createElement("div");
+      row.className = item.needsReview ? "needs-review" : "";
+      const label = document.createElement("dt");
+      label.textContent = item.label;
+      const value = document.createElement("dd");
+      value.textContent = item.value;
+      row.append(label, value);
+      elements.fieldSummaryList.append(row);
+    });
+    return;
+  }
+
+  const extraction = extractKeyInfo(state.uploadResult?.full_text || "");
   elements.contractType.textContent = extraction.contractType;
   elements.deposit.textContent = extraction.deposit;
   elements.leasePeriod.textContent = extraction.leasePeriod;
@@ -436,17 +546,28 @@ function renderExtractedSummary() {
   elements.seniorRights.textContent = extraction.seniorRights;
 }
 
-function extractStructuredKeyInfo(contractFields) {
+function buildStructuredSummaryItems(contractFields) {
   const fields = contractFields?.fields;
-  if (!fields) return null;
-  return {
-    contractType: fieldDisplay(fields.contract_type),
-    deposit: fieldDisplay(fields.deposit_amount),
-    leasePeriod: buildLeasePeriod(fields.lease_start_date, fields.lease_end_date),
-    fixedDate: fieldDisplay(fields.confirmed_date_status),
-    moveIn: fieldDisplay(fields.move_in_report_status),
-    seniorRights: fieldDisplay(fields.priority_rights),
-  };
+  if (!fields) return [];
+  const documentType = contractFields?.profile?.document_type || elements.documentType?.value || "unknown";
+  const fieldOrder = SUMMARY_FIELDS_BY_TYPE[documentType] || SUMMARY_FIELDS_BY_TYPE.unknown;
+
+  return fieldOrder
+    .map((fieldId) => {
+      const value = fieldId === "lease_period"
+        ? buildLeasePeriod(fields.lease_start_date, fields.lease_end_date)
+        : fieldDisplay(fields[fieldId]);
+      return {
+        fieldId,
+        label: SUMMARY_FIELD_LABELS[fieldId] || fieldId,
+        value,
+        needsReview: fieldId === "lease_period"
+          ? Boolean(fields.lease_start_date?.needs_review || fields.lease_end_date?.needs_review)
+          : Boolean(fields[fieldId]?.needs_review),
+      };
+    })
+    .filter((item) => item.value)
+    .slice(0, 12);
 }
 
 function fieldDisplay(field) {
@@ -872,7 +993,8 @@ function renderPreviewOverlays() {
     if (!box) return;
     const overlay = pageEl.querySelector(".preview-overlay");
     const marker = document.createElement("span");
-    marker.className = "field-evidence-box";
+    marker.className = `field-evidence-box ${fieldEvidenceClass(evidence.field_id)}`;
+    marker.title = SUMMARY_FIELD_LABELS[evidence.field_id] || evidence.label_text || "추출 필드";
     Object.assign(marker.style, box);
     overlay.append(marker);
   });
@@ -880,9 +1002,27 @@ function renderPreviewOverlays() {
 
 function collectFieldEvidenceBoxes() {
   const fields = state.uploadResult?.contract_fields?.fields || {};
-  return Object.values(fields)
-    .flatMap((field) => field?.evidence || [])
+  return Object.entries(fields)
+    .flatMap(([fieldId, field]) => (field?.evidence || []).map((evidence) => ({ ...evidence, field_id: fieldId })))
     .filter((evidence) => evidence?.page_number && (evidence.value_bbox?.length === 4 || evidence.bbox?.length === 4));
+}
+
+function fieldEvidenceClass(fieldId) {
+  if (["land_area", "building_info", "lease_area", "address"].includes(fieldId)) return "property";
+  if (["special_terms", "risk_flags"].includes(fieldId)) return "special";
+  if (
+    [
+      "deposit_amount",
+      "monthly_rent",
+      "sale_price",
+      "contract_payment",
+      "intermediate_payment",
+      "balance_payment",
+    ].includes(fieldId)
+  ) {
+    return "payment";
+  }
+  return "general";
 }
 
 function isCompatibleCoordinateSystem(source, target) {

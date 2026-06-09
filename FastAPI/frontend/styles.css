@@ -340,6 +340,10 @@ h2 {
   border-radius: 8px;
 }
 
+.info-list div.needs-review {
+  background: #fff8e5;
+}
+
 .info-list dt {
   color: var(--muted);
   font-size: 13px;
@@ -438,22 +442,16 @@ h2 {
 }
 
 .redaction-box {
-  background: rgba(8, 21, 47, 0.72);
+  background: #08152f;
   z-index: 4;
 }
 
 .redaction-box.mosaic {
-  background:
-    repeating-linear-gradient(
-      45deg,
-      rgba(8, 21, 47, 0.82) 0 4px,
-      rgba(8, 21, 47, 0.58) 4px 8px
-    );
+  background: #08152f;
 }
 
 .redaction-box.translucent {
-  background: rgba(37, 99, 235, 0.28);
-  border: 1px solid rgba(37, 99, 235, 0.55);
+  background: #08152f;
 }
 
 .preview-stack {
@@ -501,10 +499,25 @@ h2 {
 }
 
 .field-evidence-box {
-  border: 2px solid rgba(245, 184, 46, 0.95);
-  background: rgba(245, 184, 46, 0.12);
+  border: 2px solid rgba(37, 99, 235, 0.9);
+  background: rgba(37, 99, 235, 0.1);
   border-radius: 3px;
   z-index: 3;
+}
+
+.field-evidence-box.payment {
+  border-color: rgba(245, 184, 46, 0.95);
+  background: rgba(245, 184, 46, 0.14);
+}
+
+.field-evidence-box.property {
+  border-color: rgba(37, 99, 235, 0.9);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.field-evidence-box.special {
+  border-color: rgba(22, 163, 74, 0.95);
+  background: rgba(22, 163, 74, 0.18);
 }
 
 .highlight-box.high {

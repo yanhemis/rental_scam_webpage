@@ -26,6 +26,9 @@ HIGH_SENSITIVITY_TYPES = {
     "lessee_phone",
     "broker_phone",
     "account_number",
+    "lessor_personal_block",
+    "lessee_personal_block",
+    "broker_personal_block",
 }
 MEDIUM_SENSITIVITY_TYPES = {
     "name",
@@ -85,6 +88,9 @@ def _ratio_box(x0: float, y0: float, x1: float, y1: float) -> tuple[float, float
 
 STANDARD_CONTRACT_TEMPLATE_BOXES = (
     TemplateRedactionBox("account_number", _ratio_box(520, 2070, 1550, 2145)),
+    TemplateRedactionBox("lessor_personal_block", _ratio_box(440, 2190, 2110, 2375)),
+    TemplateRedactionBox("lessee_personal_block", _ratio_box(440, 2380, 2110, 2555)),
+    TemplateRedactionBox("broker_personal_block", _ratio_box(440, 2605, 2110, 2895)),
     TemplateRedactionBox("lessor_address", _ratio_box(500, 2220, 1185, 2295)),
     TemplateRedactionBox("lessor_resident_registration_number", _ratio_box(500, 2295, 1190, 2365)),
     TemplateRedactionBox("lessor_phone", _ratio_box(1240, 2295, 1595, 2365)),
@@ -149,11 +155,7 @@ def _sensitivity_for(label_type: str) -> RedactionSensitivity:
 
 
 def _mask_style_for(sensitivity: RedactionSensitivity) -> MaskStyle:
-    if sensitivity == RedactionSensitivity.high:
-        return MaskStyle.opaque
-    if sensitivity == RedactionSensitivity.medium:
-        return MaskStyle.mosaic
-    return MaskStyle.translucent
+    return MaskStyle.opaque
 
 
 def _opacity_for(mask_style: MaskStyle) -> float:
