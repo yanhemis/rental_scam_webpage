@@ -309,6 +309,8 @@ def _amount_field(
         amount = _extract_amount_from_text(window)
         if amount is None:
             continue
+        if not _amount_in_expected_range(field_id, amount):
+            continue
         value_text = match.group(0)
         evidence = _evidence(locations, labels, value_text)
         confidence = 0.82 if evidence else 0.68
@@ -326,6 +328,8 @@ def _lease_period_fields(
 
     preferred = _find_date_pair_near_period_label(text, date_matches) or (date_matches[0], date_matches[1])
     start, end = preferred
+    if start[1] == end[1]:
+        return _missing_field("lease_start_date"), _missing_field("lease_end_date")
     evidence = _evidence(locations, ("임대차기간", "존속기간", "기간", "부터", "까지"), f"{start[0]} {end[0]}")
     confidence = 0.78 if evidence else 0.62
     return (
@@ -359,28 +363,17 @@ def _party_name_field(
     follower_labels = ("임대인", "임차인", "매도인", "매수인", "주소", "소재지", "계약", "특약")
     for label in labels:
         pattern = re.compile(
-            rf"{re.escape(label)}\s*[:：]?\s*([가-힣]{{2,4}})(?=\s*(?:{'|'.join(follower_labels)}|$))"
+            rf"{re.escape(label)}(?:\s+|[:：]\s*)([가-힣]{{2,4}})(?=\s*(?:{'|'.join(follower_labels)}|$))"
         )
         match = pattern.search(text)
         if match:
             name = match.group(1)
+            if name in labels or name in NAME_STOPWORDS:
+                continue
             evidence = _evidence(locations, labels, name)
             confidence = 0.72 if evidence else 0.58
             return _field(name, name, confidence, True, evidence)
 
-    compact_text = _compact(text)
-    label_pattern = "|".join(re.escape(_compact(label)) for label in labels)
-    follower_pattern = "|".join(re.escape(_compact(label)) for label in follower_labels)
-    for match in re.finditer(rf"({label_pattern})([가-힣]{{2,4}})(?=({follower_pattern})|$)", compact_text):
-        window = match.group(2)
-        if any(stopword in window for stopword in NAME_STOPWORDS):
-            continue
-        name = window
-        if name in labels or name in NAME_STOPWORDS:
-            continue
-        evidence = _evidence(locations, labels, name)
-        confidence = 0.72 if evidence else 0.55
-        return _field(name, name, confidence, True, evidence)
     return _missing_field(field_id)
 
 
@@ -393,10 +386,12 @@ def _address_field(text: str, locations: list[ExtractedTextLocation]) -> Contrac
             continue
         if not any(_compact(label) in compact_line for label in label_terms):
             continue
-        if not re.search(r"[가-힣]{2,}(시|군|구|동|로|길)", compact_line):
+        if not _looks_like_address(compact_line):
             continue
         address_match = re.search(r"(?:소재지|주소)\s*[:：]?\s*(.{4,80})", line)
         value = address_match.group(1).strip() if address_match else line[:80]
+        if not _looks_like_address(_compact(value)):
+            continue
         evidence = _evidence(locations, label_terms, line)
         confidence = 0.7 if evidence else 0.55
         return _field(value, value, confidence, confidence < 0.75, evidence)
@@ -448,6 +443,28 @@ def _extract_amount_from_text(text: str) -> int | None:
     if korean_match:
         return _parse_korean_amount(korean_match.group(1))
     return None
+
+
+def _amount_in_expected_range(field_id: str, amount: int) -> bool:
+    if field_id in {"deposit_amount", "sale_price"}:
+        return 1_000_000 <= amount <= 10_000_000_000
+    if field_id in {"monthly_rent", "maintenance_fee"}:
+        return 10_000 <= amount <= 20_000_000
+    if field_id in {"contract_payment", "intermediate_payment", "balance_payment"}:
+        return 100_000 <= amount <= 10_000_000_000
+    return amount > 0
+
+
+def _looks_like_address(value: str) -> bool:
+    if not value or "표시" in value or "사무소" in value:
+        return False
+    region_hit = re.search(
+        r"서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|전라|경상|제주|"
+        r"전주|수원|성남|고양|용인|창원|청주|천안",
+        value,
+    )
+    road_hit = re.search(r"[가-힣0-9]+(로|길|동|읍|면|구|군)\d*", value)
+    return bool(region_hit and road_hit)
 
 
 def _parse_korean_amount(value: str) -> int | None:
