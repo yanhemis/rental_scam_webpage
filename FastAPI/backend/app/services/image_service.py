@@ -1,4 +1,3 @@
-from typing import Union, Optional
 from pathlib import Path
 from shutil import which
 
@@ -9,9 +8,10 @@ from app.config import get_settings
 from app.schemas.extraction_schema import ExtractedTextLocation, ExtractionLocationSource
 
 _easyocr_reader = None
+_paddleocr_reader = None
 
 
-def _resolve_tesseract_cmd() -> Optional[str]:
+def _resolve_tesseract_cmd() -> str | None:
     settings = get_settings()
 
     if settings.tesseract_cmd:
@@ -185,6 +185,20 @@ def _get_easyocr_reader():
     return _easyocr_reader
 
 
+def _get_paddleocr_reader():
+    global _paddleocr_reader
+    if _paddleocr_reader is None:
+        try:
+            from paddleocr import PaddleOCR
+        except ImportError as exc:
+            raise RuntimeError(
+                "PaddleOCR is not installed. Use the Python 3.11 Paddle venv "
+                "or set LOCAL_OCR_PROVIDER=easyocr."
+            ) from exc
+        _paddleocr_reader = PaddleOCR(lang="korean")
+    return _paddleocr_reader
+
+
 def _extract_locations_from_easyocr_results(
     results: list,
     *,
@@ -225,6 +239,72 @@ def _extract_locations_from_easyocr_results(
     return locations
 
 
+def _extract_locations_from_paddleocr_results(
+    results: list,
+    *,
+    page_number: int,
+    span_prefix: str,
+    source: ExtractionLocationSource,
+    coordinate_system: str,
+) -> list[ExtractedTextLocation]:
+    locations: list[ExtractedTextLocation] = []
+    if not results:
+        return locations
+
+    index = 0
+    for page_result in results:
+        if not hasattr(page_result, "get"):
+            continue
+        texts = page_result.get("rec_texts") or []
+        scores = page_result.get("rec_scores") or []
+        boxes = page_result.get("rec_boxes")
+        polys = page_result.get("rec_polys") or page_result.get("dt_polys") or []
+        for item_index, text in enumerate(texts):
+            word = str(text or "").strip()
+            if not word:
+                continue
+            bbox = _paddle_bbox(boxes, polys, item_index)
+            if bbox is None:
+                continue
+            try:
+                confidence = float(scores[item_index])
+            except (IndexError, TypeError, ValueError):
+                confidence = None
+            locations.append(
+                ExtractedTextLocation(
+                    span_id=f"{span_prefix}-p{page_number}-pa{index}",
+                    text=word,
+                    page_number=page_number,
+                    bbox=bbox,
+                    confidence=confidence,
+                    source=source,
+                    coordinate_system=coordinate_system,
+                )
+            )
+            index += 1
+    return locations
+
+
+def _paddle_bbox(boxes, polys, index: int) -> list[float] | None:
+    try:
+        if boxes is not None and len(boxes) > index:
+            values = [float(value) for value in list(boxes[index])]
+            if len(values) >= 4:
+                return values[:4]
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        if polys is not None and len(polys) > index:
+            points = polys[index]
+            xs = [float(point[0]) for point in points]
+            ys = [float(point[1]) for point in points]
+            return [min(xs), min(ys), max(xs), max(ys)]
+    except (TypeError, ValueError, IndexError):
+        return None
+    return None
+
+
 def _ocr_easyocr_image(
     image: Image.Image,
     *,
@@ -253,13 +333,44 @@ def _ocr_easyocr_image(
     return text, locations
 
 
+def _ocr_paddleocr_image(
+    image: Image.Image,
+    *,
+    page_number: int,
+    span_prefix: str,
+    coordinate_system: str,
+) -> tuple[str, list[ExtractedTextLocation]]:
+    try:
+        import numpy as np
+    except ImportError as exc:
+        raise RuntimeError(
+            "NumPy is required for PaddleOCR. Use the Python 3.11 Paddle venv."
+        ) from exc
+
+    reader = _get_paddleocr_reader()
+    normalized = ImageOps.exif_transpose(image).convert("RGB")
+    if hasattr(reader, "predict"):
+        results = reader.predict(np.array(normalized))
+    else:
+        results = reader.ocr(np.array(normalized))
+    locations = _extract_locations_from_paddleocr_results(
+        results,
+        page_number=page_number,
+        span_prefix=span_prefix,
+        source=ExtractionLocationSource.image_ocr,
+        coordinate_system=coordinate_system,
+    )
+    text = " ".join(location.text for location in locations)
+    return text, locations
+
+
 def _ocr_data_candidates(
     image: Image.Image,
     lang: str,
-) -> tuple[str, Optional[dict], str]:
+) -> tuple[str, dict | None, str]:
     settings = get_settings()
     best_text = ""
-    best_candidate: Optional[Image.Image] = None
+    best_candidate: Image.Image | None = None
     best_psm_mode = settings.tesseract_psm_modes[0] if settings.tesseract_psm_modes else 6
     best_coordinate_system = "normalized_image_pixels"
     best_score = (0, 0)
@@ -320,12 +431,20 @@ def _ensure_tesseract_cmd() -> None:
     pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
 
 
-def extract_text_from_image(file_path: Union[str, Path]) -> str:
+def extract_text_from_image(file_path: str | Path) -> str:
     image_path = Path(file_path)
     settings = get_settings()
 
     try:
         with Image.open(image_path) as image:
+            if settings.local_ocr_provider == "paddleocr":
+                text, _locations = _ocr_paddleocr_image(
+                    image,
+                    page_number=1,
+                    span_prefix="img",
+                    coordinate_system="paddleocr_image_pixels",
+                )
+                return text
             if settings.local_ocr_provider == "easyocr":
                 text, _locations = _ocr_easyocr_image(
                     image,
@@ -339,20 +458,27 @@ def extract_text_from_image(file_path: Union[str, Path]) -> str:
             return _ocr_candidates(image, settings.tesseract_lang)
     except UnidentifiedImageError as exc:
         raise ValueError("Unsupported image format.") from exc
-    except pytesseract.TesseractNotFoundError:
-        return ""
-    except pytesseract.TesseractError:
-        return ""
+    except pytesseract.TesseractNotFoundError as exc:
+        raise RuntimeError("Tesseract OCR is not installed or cannot be found.") from exc
+    except pytesseract.TesseractError as exc:
+        raise RuntimeError("Tesseract OCR failed while extracting image text.") from exc
 
 
 def extract_text_locations_from_image(
-    file_path: Union[str, Path],
+    file_path: str | Path,
 ) -> tuple[str, list[ExtractedTextLocation]]:
     image_path = Path(file_path)
     settings = get_settings()
 
     try:
         with Image.open(image_path) as image:
+            if settings.local_ocr_provider == "paddleocr":
+                return _ocr_paddleocr_image(
+                    image,
+                    page_number=1,
+                    span_prefix="img",
+                    coordinate_system="paddleocr_image_pixels",
+                )
             if settings.local_ocr_provider == "easyocr":
                 return _ocr_easyocr_image(
                     image,
@@ -368,10 +494,10 @@ def extract_text_locations_from_image(
             )
     except UnidentifiedImageError as exc:
         raise ValueError("Unsupported image format.") from exc
-    except pytesseract.TesseractNotFoundError:
-        return "", []
-    except pytesseract.TesseractError:
-        return "", []
+    except pytesseract.TesseractNotFoundError as exc:
+        raise RuntimeError("Tesseract OCR is not installed or cannot be found.") from exc
+    except pytesseract.TesseractError as exc:
+        raise RuntimeError("Tesseract OCR failed while collecting text locations.") from exc
 
     locations = _extract_locations_from_tesseract_data(
         data or {},
@@ -398,6 +524,13 @@ def extract_text_locations_from_pil_image(
             page_number=page_number,
             span_prefix=span_prefix,
             coordinate_system=f"easyocr_{coordinate_system}",
+        )
+    if settings.local_ocr_provider == "paddleocr":
+        return _ocr_paddleocr_image(
+            image,
+            page_number=page_number,
+            span_prefix=span_prefix,
+            coordinate_system=f"paddleocr_{coordinate_system}",
         )
 
     _ensure_tesseract_cmd()

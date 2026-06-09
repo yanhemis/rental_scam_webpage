@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Union, Optional
 
 import base64
 from io import BytesIO
@@ -30,12 +29,14 @@ def _preview_coordinate_system_for_pdf() -> str:
     scale = settings.pdf_ocr_render_scale
     if settings.local_ocr_provider == "easyocr":
         return f"easyocr_pdf_rendered_pixels_{scale:g}x"
+    if settings.local_ocr_provider == "paddleocr":
+        return f"paddleocr_pdf_rendered_pixels_{scale:g}x"
     return f"pdf_rendered_pixels_{scale:g}x"
 
 
 def build_document_preview_pages(
-    file_path: Union[str, Path],
-    content_type: Optional[str],
+    file_path: str | Path,
+    content_type: str | None,
 ) -> list[DocumentPreviewPage]:
     settings = get_settings()
     path = Path(file_path)
@@ -80,6 +81,8 @@ def _build_image_preview_page(image_path: Path) -> list[DocumentPreviewPage]:
             coordinate_system = (
                 "easyocr_image_pixels"
                 if get_settings().local_ocr_provider == "easyocr"
+                else "paddleocr_image_pixels"
+                if get_settings().local_ocr_provider == "paddleocr"
                 else "source_image_pixels"
             )
             return [
