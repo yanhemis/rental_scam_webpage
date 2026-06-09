@@ -704,6 +704,8 @@ function renderPreviewOverlays() {
     overlay.innerHTML = "";
   });
 
+  renderTemplatePurposeZones();
+
   const redactions = state.uploadResult?.redactions || [];
   redactions.forEach((redaction) => {
     const pageEl = elements.documentViewer.querySelector(
@@ -737,6 +739,40 @@ function renderPreviewOverlays() {
     Object.assign(marker.style, box);
     overlay.append(marker);
   });
+}
+
+const TEMPLATE_PURPOSE_ZONES = [
+  { role: "extract", page: "contract", x: 0.05, y: 0.04, w: 0.9, h: 0.04 },
+  { role: "extract", page: "contract", x: 0.04, y: 0.1, w: 0.58, h: 0.04 },
+  { role: "extract", page: "contract", x: 0.04, y: 0.17, w: 0.9, h: 0.08 },
+  { role: "extract", page: "contract", x: 0.04, y: 0.27, w: 0.9, h: 0.12 },
+  { role: "extract", page: "contract", x: 0.37, y: 0.4, w: 0.42, h: 0.05 },
+  { role: "ai", page: "contract", x: 0.03, y: 0.58, w: 0.78, h: 0.11 },
+  { role: "privacy", page: "contract", x: 0.02, y: 0.71, w: 0.96, h: 0.27 },
+];
+
+function renderTemplatePurposeZones() {
+  const pages = Array.from(elements.documentViewer.querySelectorAll(".preview-page"));
+  pages.forEach((pageEl) => {
+    const pageNumber = Number(pageEl.dataset.pageNumber);
+    if (pageNumber <= 1) return;
+    const overlay = pageEl.querySelector(".preview-overlay");
+    TEMPLATE_PURPOSE_ZONES.forEach((zone) => {
+      const element = document.createElement("span");
+      element.className = `purpose-zone ${zone.role}`;
+      Object.assign(element.style, ratioZoneToPercentBox(zone));
+      overlay.append(element);
+    });
+  });
+}
+
+function ratioZoneToPercentBox(zone) {
+  return {
+    left: `${zone.x * 100}%`,
+    top: `${zone.y * 100}%`,
+    width: `${zone.w * 100}%`,
+    height: `${zone.h * 100}%`,
+  };
 }
 
 function collectFieldEvidenceBoxes() {
