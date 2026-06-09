@@ -447,11 +447,17 @@ h2 {
 }
 
 .redaction-box.mosaic {
-  background: #08152f;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(8, 21, 47, 0.82) 0 4px,
+      rgba(8, 21, 47, 0.58) 4px 8px
+    );
 }
 
 .redaction-box.translucent {
-  background: #08152f;
+  background: rgba(37, 99, 235, 0.28);
+  border: 1px solid rgba(37, 99, 235, 0.55);
 }
 
 .preview-stack {

@@ -155,7 +155,17 @@ def _sensitivity_for(label_type: str) -> RedactionSensitivity:
 
 
 def _mask_style_for(sensitivity: RedactionSensitivity) -> MaskStyle:
-    return MaskStyle.opaque
+    if sensitivity == RedactionSensitivity.high:
+        return MaskStyle.opaque
+    if sensitivity == RedactionSensitivity.medium:
+        return MaskStyle.mosaic
+    return MaskStyle.translucent
+
+
+def _mask_style_for_label(label_type: str, sensitivity: RedactionSensitivity) -> MaskStyle:
+    if label_type in HIGH_SENSITIVITY_TYPES or label_type in MEDIUM_SENSITIVITY_TYPES:
+        return MaskStyle.opaque
+    return _mask_style_for(sensitivity)
 
 
 def _opacity_for(mask_style: MaskStyle) -> float:
@@ -185,7 +195,7 @@ def _build_redaction_target(
     detection_method: RedactionDetectionMethod,
 ) -> RedactionTarget:
     sensitivity = _sensitivity_for(label_type)
-    mask_style = _mask_style_for(sensitivity)
+    mask_style = _mask_style_for_label(label_type, sensitivity)
     return RedactionTarget(
         redaction_id=redaction_id,
         label_type=label_type,
