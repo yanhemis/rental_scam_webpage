@@ -1,3 +1,4 @@
+from typing import Optional
 from __future__ import annotations
 
 import re
@@ -633,7 +634,7 @@ def _extract_payment_table_candidates(
     return best_candidates
 
 
-def _find_contract_table_start(lines: list[list[ExtractedTextLocation]]) -> int | None:
+def _find_contract_table_start(lines: list[list[ExtractedTextLocation]]) -> Optional[int]:
     for index, line in enumerate(lines):
         text = _compact(_line_text(line))
         if "계약내용" in text and "2" in text:
@@ -660,7 +661,7 @@ def _looks_like_article_two(text: str) -> bool:
     return "제2조" in compact or "존속기간" in compact or "존숙기간" in compact
 
 
-def _best_amount_in_line(text: str) -> int | None:
+def _best_amount_in_line(text: str) -> Optional[int]:
     amounts: list[int] = []
     for match in re.finditer(r"[0-9][0-9,./\\s]{3,}[0-9]", text):
         raw = match.group(0)
@@ -812,7 +813,7 @@ def _collect_special_term_locations(
     return collected
 
 
-def _extract_address_candidate(text: str) -> str | None:
+def _extract_address_candidate(text: str) -> Optional[str]:
     cleaned = re.sub(r"\s+", " ", text).strip()
     match = re.search(r"((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|전라|경상|제주|전주)[^\\n]{4,80})", cleaned)
     if match:
@@ -837,7 +838,7 @@ def _line_y_center(line: list[ExtractedTextLocation]) -> float:
     return sum(_y_center(item) for item in line) / len(line)
 
 
-def _extract_amount_from_text(text: str) -> int | None:
+def _extract_amount_from_text(text: str) -> Optional[int]:
     number_match = re.search(r"([0-9][0-9,]{3,})", text)
     if number_match:
         return int(re.sub(r"\D", "", number_match.group(1)))
@@ -870,7 +871,7 @@ def _looks_like_address(value: str) -> bool:
     return bool(region_hit and road_hit)
 
 
-def _parse_korean_amount(value: str) -> int | None:
+def _parse_korean_amount(value: str) -> Optional[int]:
     compact_value = re.sub(r"\s|원|정|금", "", value)
     if not compact_value:
         return None

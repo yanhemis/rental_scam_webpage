@@ -1,3 +1,4 @@
+from typing import Optional, Union
 from pathlib import Path
 from io import BytesIO
 
@@ -9,7 +10,7 @@ from app.schemas.extraction_schema import ExtractedTextLocation, ExtractionLocat
 from app.services.image_service import extract_text_locations_from_pil_image
 
 
-def extract_text_from_pdf(file_path: str | Path) -> str:
+def extract_text_from_pdf(file_path: Union[str, Path]) -> str:
     pdf_path = Path(file_path)
     extracted_pages: list[str] = []
 
@@ -20,7 +21,7 @@ def extract_text_from_pdf(file_path: str | Path) -> str:
     return "\n".join(part for part in extracted_pages if part).strip()
 
 
-def extract_text_locations_from_pdf(file_path: str | Path) -> tuple[str, list[ExtractedTextLocation]]:
+def extract_text_locations_from_pdf(file_path: Union[str, Path]) -> tuple[str, list[ExtractedTextLocation]]:
     settings = get_settings()
     pdf_path = Path(file_path)
     extracted_pages: list[str] = []

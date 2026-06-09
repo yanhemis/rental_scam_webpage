@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Optional
 import re
 from dataclasses import dataclass
 from itertools import count
@@ -178,7 +179,7 @@ def _build_redaction_target(
     coordinate_system: str,
     confidence: float,
     box_confidence: float,
-    text_confidence: float | None,
+    text_confidence: Optional[float],
     detection_method: RedactionDetectionMethod,
 ) -> RedactionTarget:
     sensitivity = _sensitivity_for(label_type)
@@ -208,7 +209,7 @@ def _text(value: object) -> str:
     return str(value or "")
 
 
-def _average_location_confidence(locations: list[ExtractedTextLocation]) -> float | None:
+def _average_location_confidence(locations: list[ExtractedTextLocation]) -> Optional[float]:
     values = [item.confidence for item in locations if item.confidence is not None]
     if not values:
         return None
@@ -306,7 +307,7 @@ def _detect_template_redactions(locations: list[ExtractedTextLocation]) -> list[
     return redactions
 
 
-def _find_label(line: list[ExtractedTextLocation]) -> tuple[SensitiveLabel, list[ExtractedTextLocation]] | None:
+def _find_label(line: list[ExtractedTextLocation]) -> Optional[tuple[SensitiveLabel, list[ExtractedTextLocation]]]:
     compact = _compact_text(line)
     if not compact:
         return None
@@ -333,7 +334,7 @@ def _line_value_bbox(
     label_locations: list[ExtractedTextLocation],
     *,
     page_max_x: float,
-) -> list[float] | None:
+) -> Optional[list[float]]:
     label_bbox = _bbox_union(label_locations)
     line_bbox = _bbox_union(line)
     right_candidates = [item for item in line if item.bbox[0] >= label_bbox[2] - 2]

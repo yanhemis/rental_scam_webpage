@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime
 from enum import Enum
 
@@ -37,12 +38,12 @@ class ExtractedTextLocation(BaseModel):
         max_length=4,
         description="Bounding box as [x0, y0, x1, y1] in the source coordinate system.",
     )
-    confidence: float | None = None
+    confidence: Optional[float] = None
     source: ExtractionLocationSource
     coordinate_system: str = "source"
     is_redacted: bool = False
-    redaction_type: str | None = None
-    redaction_id: str | None = None
+    redaction_type: Optional[str] = None
+    redaction_id: Optional[str] = None
 
 
 class RedactionTarget(BaseModel):
@@ -55,7 +56,7 @@ class RedactionTarget(BaseModel):
     coordinate_system: str = "source"
     confidence: float = 0.7
     box_confidence: float = 0.7
-    text_confidence: float | None = None
+    text_confidence: Optional[float] = None
     detection_method: RedactionDetectionMethod = RedactionDetectionMethod.ocr_label
     sensitivity: RedactionSensitivity = RedactionSensitivity.high
     mask_style: MaskStyle = MaskStyle.opaque
@@ -75,7 +76,7 @@ class RedactionMetrics(BaseModel):
 
 class ExtractionResult(BaseModel):
     document_id: str
-    content_hash: str | None = None
+    content_hash: Optional[str] = None
     text: str
     quality: float
     locations: list[ExtractedTextLocation] = Field(default_factory=list)

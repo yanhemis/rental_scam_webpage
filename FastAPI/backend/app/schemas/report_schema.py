@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.schemas.extraction_schema import ExtractedTextLocation
@@ -8,7 +9,7 @@ class ChecklistExternalAction(BaseModel):
     url: str
     type: str = "external_link"
     opens_in_new_window: bool = True
-    completion_hint: str | None = None
+    completion_hint: Optional[str] = None
 
 
 class SafetyChecklistItem(BaseModel):
@@ -16,9 +17,9 @@ class SafetyChecklistItem(BaseModel):
     label: str
     description: str
     why_it_matters: str
-    official_url: str | None = None
-    action_label: str | None = None
-    external_action: ChecklistExternalAction | None = None
+    official_url: Optional[str] = None
+    action_label: Optional[str] = None
+    external_action: Optional[ChecklistExternalAction] = None
     priority: str = "medium"
     stage: str = "before_contract"
     status: str = "unchecked"
@@ -38,7 +39,7 @@ class ReportDifference(BaseModel):
     risk_level: str
     highlight_color: str
     locations: list[ExtractedTextLocation] = Field(default_factory=list)
-    special_term_explanation: str | None = None
+    special_term_explanation: Optional[str] = None
     risk_score_delta: int = 0
 
 

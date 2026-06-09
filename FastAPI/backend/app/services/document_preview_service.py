@@ -1,3 +1,4 @@
+from typing import Optional
 from __future__ import annotations
 
 import base64
@@ -34,7 +35,7 @@ def _preview_coordinate_system_for_pdf() -> str:
 
 def build_document_preview_pages(
     file_path: str | Path,
-    content_type: str | None,
+    content_type: Optional[str],
 ) -> list[DocumentPreviewPage]:
     settings = get_settings()
     path = Path(file_path)

@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime
 from uuid import uuid4
 
@@ -28,8 +29,8 @@ router = APIRouter(tags=["documents"])
 
 
 def _detect_document_source(
-    content_type: str | None,
-    source: DocumentSourceType | None,
+    content_type: Optional[str],
+    source: Optional[DocumentSourceType],
 ) -> DocumentSourceType:
     if source is not None:
         return source
@@ -37,14 +38,13 @@ def _detect_document_source(
         return DocumentSourceType.pdf
     return DocumentSourceType.mobile_scan
 
-
 async def _handle_upload(
     request: Request,
     file: UploadFile,
     settings: Settings,
-    source: DocumentSourceType | None,
-    user_id: str | None,
-    document_type: ContractDocumentType | None,
+    source: Optional[DocumentSourceType],
+    user_id: Optional[str],
+    document_type: Optional[ContractDocumentType],
 ) -> DocumentUploadResponse:
     request_id = getattr(request.state, "request_id", get_request_id())
 
@@ -168,26 +168,24 @@ async def _handle_upload(
         deletion_scheduled_at=metadata.deletion_scheduled_at,
     )
 
-
 @router.post("/documents/upload", response_model=DocumentUploadResponse)
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
-    source: DocumentSourceType | None = Form(default=None),
-    user_id: str | None = Form(default=None),
-    document_type: ContractDocumentType | None = Form(default=ContractDocumentType.unknown),
+    source: Optional[DocumentSourceType] = Form(default=None),
+    user_id: Optional[str] = Form(default=None),
+    document_type: Optional[ContractDocumentType] = Form(default=ContractDocumentType.unknown),
     settings: Settings = Depends(get_app_settings),
 ):
     return await _handle_upload(request, file, settings, source, user_id, document_type)
-
 
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document_legacy(
     request: Request,
     file: UploadFile = File(...),
-    source: DocumentSourceType | None = Form(default=None),
-    user_id: str | None = Form(default=None),
-    document_type: ContractDocumentType | None = Form(default=ContractDocumentType.unknown),
+    source: Optional[DocumentSourceType] = Form(default=None),
+    user_id: Optional[str] = Form(default=None),
+    document_type: Optional[ContractDocumentType] = Form(default=ContractDocumentType.unknown),
     settings: Settings = Depends(get_app_settings),
 ):
     return await _handle_upload(request, file, settings, source, user_id, document_type)

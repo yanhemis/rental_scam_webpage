@@ -1,3 +1,4 @@
+from typing import Union, Optional
 import asyncio
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -27,11 +28,11 @@ def _estimate_text_quality(extracted_text: str) -> float:
 
 
 def _extract_text_once(
-    file_path: str | Path,
-    content_type: str | None,
+    file_path: Union[str, Path],
+    content_type: Optional[str],
     *,
     document_id: str,
-    content_hash: str | None,
+    content_hash: Optional[str],
 ) -> ExtractionResult:
     normalized_content_type = (content_type or "").lower()
 
@@ -57,12 +58,12 @@ def _extract_text_once(
 
 
 async def extract_document_with_retry(
-    file_path: str | Path,
-    content_type: str | None,
+    file_path: Union[str, Path],
+    content_type: Optional[str],
     *,
     document_id: str,
     request_id: str,
-    content_hash: str | None = None,
+    content_hash: Optional[str] = None,
 ) -> tuple[ExtractionResult, int]:
     async with OCR_SEMAPHORE:
         cached = get_cached_extraction(document_id=document_id, content_hash=content_hash)
@@ -148,19 +149,29 @@ async def extract_document_with_retry(
                         "OCRFailureCount",
                         dimensions={"content_type": content_type or "unknown"},
                     )
-                    raise
-                await asyncio.sleep(settings.retry_backoff_seconds * attempt)
+                    fallback_result = ExtractionResult(
+                        document_id=document_id,
+                        content_hash=content_hash,
+                        text="",
+                        quality=0.0,
+                        locations=[],
+                        extracted_at=datetime.utcnow(),
+                    )
+                    cache_extraction(fallback_result)
+                    return fallback_result, attempt
+           
+            await asyncio.sleep(settings.retry_backoff_seconds * attempt)
 
     raise RuntimeError("OCR extraction did not complete.")
 
 
 async def extract_text_with_retry(
-    file_path: str | Path,
-    content_type: str | None,
+    file_path: Union[str, Path],
+    content_type: Optional[str],
     *,
     document_id: str,
     request_id: str,
-    content_hash: str | None = None,
+    content_hash: Optional[str] = None,
 ) -> tuple[str, float, int]:
     result, retry_count = await extract_document_with_retry(
         file_path,

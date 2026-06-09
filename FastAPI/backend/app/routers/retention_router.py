@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, status
 
 from app.services import file_service, storage_service
+from app.services.analysis_service import purge_analysis_result
 from app.services.extraction_cache_service import purge_document_extraction
 
 router = APIRouter(prefix="/retention", tags=["retention"])
@@ -30,6 +31,7 @@ async def delete_document_data(document_id: str):
 
     file_deleted = file_service.delete_upload_file(record.file_path)
     purge_document_extraction(document_id)
+    purge_analysis_result(document_id)
     updated = storage_service.mark_document_deleted(document_id)
 
     return {
@@ -38,6 +40,7 @@ async def delete_document_data(document_id: str):
         "file_deleted": file_deleted,
         "ocr_cache_deleted": True,
         "location_cache_deleted": True,
+        "analysis_cache_deleted": True,
         "metadata_status": updated.status.value if updated is not None else "deleted",
         "deleted_at": datetime.utcnow().isoformat(),
     }

@@ -1,3 +1,4 @@
+from typing import Union, Optional
 from hashlib import sha256
 from pathlib import Path
 from uuid import uuid4
@@ -7,7 +8,7 @@ from fastapi import UploadFile
 from app.config import get_settings
 
 
-def _safe_filename(filename: str | None) -> str:
+def _safe_filename(filename: Optional[str]) -> str:
     original_name = Path(filename or "upload.bin").name
     suffix = Path(original_name).suffix.lower()
     stem = Path(original_name).stem or "upload"
@@ -31,7 +32,7 @@ async def save_upload_file(file: UploadFile) -> tuple[Path, str]:
     return saved_path, file_hash
 
 
-def delete_upload_file(file_path: str | Path) -> bool:
+def delete_upload_file(file_path: Union[str, Path]) -> bool:
     target = Path(file_path)
     if not target.exists() or not target.is_file():
         return False

@@ -21,4 +21,5 @@ async def run_analysis(request: Request, payload: AnalysisRequest):
     return await run_analysis_with_retry(
         document_id=payload.document_id,
         request_id=request_id,
+        include_legal_basis=payload.include_legal_basis,
     )
