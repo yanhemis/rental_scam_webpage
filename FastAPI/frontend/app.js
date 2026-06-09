@@ -842,11 +842,20 @@ function renderPreviewPages() {
     pageEl.dataset.width = String(page.width);
     pageEl.dataset.height = String(page.height);
     pageEl.dataset.coordinateSystem = page.coordinate_system || "";
+    pageEl.tabIndex = 0;
+    pageEl.title = "클릭해서 크게 보기";
     pageEl.innerHTML = `
       <img src="${page.image_data_url}" alt="계약서 ${page.page_number}페이지" />
       <div class="preview-overlay"></div>
       <span class="page-badge">${page.page_number}</span>
     `;
+    pageEl.addEventListener("click", () => openPreviewZoom(pageEl));
+    pageEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openPreviewZoom(pageEl);
+      }
+    });
     stack.append(pageEl);
   });
   elements.documentViewer.append(stack);
@@ -1074,6 +1083,52 @@ function setStatus(text) {
   elements.status.textContent = text;
 }
 
+function openPreviewZoom(pageEl) {
+  const modal = getPreviewZoomModal();
+  const body = modal.querySelector(".preview-zoom-body");
+  const title = modal.querySelector(".preview-zoom-title");
+  body.innerHTML = "";
+  const clone = pageEl.cloneNode(true);
+  clone.removeAttribute("tabindex");
+  clone.removeAttribute("title");
+  title.textContent = `${pageEl.dataset.pageNumber || ""}페이지 확대 보기`;
+  body.append(clone);
+  modal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+}
+
+function closePreviewZoom() {
+  const modal = document.querySelector(".preview-zoom-modal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  modal.querySelector(".preview-zoom-body").innerHTML = "";
+  document.body.classList.remove("modal-open");
+}
+
+function getPreviewZoomModal() {
+  let modal = document.querySelector(".preview-zoom-modal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.className = "preview-zoom-modal hidden";
+  modal.innerHTML = `
+    <div class="preview-zoom-backdrop" data-close-preview-zoom="true"></div>
+    <section class="preview-zoom-panel" aria-modal="true" role="dialog">
+      <header class="preview-zoom-header">
+        <strong class="preview-zoom-title">계약서 확대 보기</strong>
+        <button class="preview-zoom-close" type="button" aria-label="닫기">×</button>
+      </header>
+      <div class="preview-zoom-body"></div>
+    </section>
+  `;
+  modal.addEventListener("click", (event) => {
+    if (event.target.closest(".preview-zoom-close") || event.target.dataset.closePreviewZoom) {
+      closePreviewZoom();
+    }
+  });
+  document.body.append(modal);
+  return modal;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -1115,6 +1170,10 @@ elements.signupButton?.addEventListener("click", handleSignup);
 elements.logoutButton?.addEventListener("click", () => {
   clearAuthSession();
   setStatus("로그아웃되었습니다.");
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closePreviewZoom();
 });
 
 renderAuth();

@@ -474,6 +474,7 @@ h2 {
   background: #ffffff;
   box-shadow: 0 10px 24px rgba(12, 26, 54, 0.12);
   overflow: hidden;
+  cursor: zoom-in;
 }
 
 .preview-page img {
@@ -486,6 +487,80 @@ h2 {
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.modal-open {
+  overflow: hidden;
+}
+
+.preview-zoom-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.preview-zoom-modal.hidden {
+  display: none;
+}
+
+.preview-zoom-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 21, 47, 0.72);
+}
+
+.preview-zoom-panel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(96vw, 1180px);
+  max-height: 94vh;
+  border-radius: 8px;
+  background: #f8fafc;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.preview-zoom-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #dbe5f2;
+  background: #ffffff;
+}
+
+.preview-zoom-title {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.preview-zoom-close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: #edf3fb;
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.preview-zoom-body {
+  overflow: auto;
+  padding: 18px;
+}
+
+.preview-zoom-body .preview-page {
+  width: min(1120px, 100%);
+  cursor: default;
+  box-shadow: 0 10px 28px rgba(12, 26, 54, 0.16);
 }
 
 .page-badge {
