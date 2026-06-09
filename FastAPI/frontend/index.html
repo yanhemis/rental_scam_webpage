@@ -13,13 +13,42 @@
           <p class="eyebrow">전세사기 예방 시스템 · MVP</p>
           <h1>주택임대차 계약서 위험 분석</h1>
           <p class="subtitle">
-            계약서 업로드, OCR 핵심 추출, 위험 문구 확인, 체크리스트 점수 반영을 한 화면에서 확인합니다.
+            계약서 업로드, OCR 핵심 추출, 위험 문구 확인, 계약 전 확인 항목 점수 반영을 한 화면에서 확인합니다.
           </p>
         </div>
-        <div class="score-summary" aria-live="polite">
-          <span>전체 위험도</span>
-          <strong id="header-score">32점</strong>
-          <small id="header-score-label">주의 필요</small>
+
+        <div class="topbar-actions">
+          <section class="auth-panel">
+            <div id="auth-forms" class="auth-forms">
+              <div class="auth-form">
+                <strong>로그인</strong>
+                <input id="login-email" type="email" placeholder="이메일" />
+                <input id="login-password" type="password" placeholder="비밀번호" />
+                <button id="login-button" class="auth-button" type="button">로그인</button>
+              </div>
+
+              <div class="auth-form">
+                <strong>회원가입</strong>
+                <input id="signup-name" type="text" placeholder="이름" />
+                <input id="signup-email" type="email" placeholder="이메일" />
+                <input id="signup-password" type="password" placeholder="비밀번호" />
+                <button id="signup-button" class="auth-button secondary" type="button">회원가입</button>
+              </div>
+            </div>
+
+            <div id="auth-user" class="auth-user hidden">
+              <span><strong id="auth-user-name">사용자</strong>님 로그인 중</span>
+              <button id="logout-button" class="auth-button ghost" type="button">로그아웃</button>
+            </div>
+
+            <p id="auth-message" class="auth-message"></p>
+          </section>
+
+          <div class="score-summary" aria-live="polite">
+            <span>종합 위험도</span>
+            <strong id="header-score">32점</strong>
+            <small id="header-score-label">주의 필요</small>
+          </div>
         </div>
       </header>
 
@@ -55,7 +84,7 @@
           <section class="panel">
             <div class="panel-heading">
               <h2>핵심 추출 정보</h2>
-              <span class="pill success">OCR 요약</span>
+              <span class="pill success">계약서 핵심 정보</span>
             </div>
             <dl class="info-list">
               <div>
@@ -116,25 +145,25 @@
         <aside class="right-column">
           <section class="panel risk-panel">
             <div class="panel-heading">
-              <h2>위험 점수</h2>
+              <h2>AI 분석 참고 지표</h2>
               <span id="risk-level-pill" class="pill warning">주의</span>
             </div>
             <div class="risk-score">
               <strong id="risk-score">32점</strong>
-              <span id="risk-formula">기본 20 + 특약 12 - 체크 0</span>
+              <span id="risk-formula">위험 문구 + 확인 필요 항목 반영</span>
             </div>
           </section>
 
           <section class="panel checklist-panel">
             <div class="panel-heading">
-              <h2>체크리스트</h2>
+              <h2>계약 전 확인 항목</h2>
               <span id="completed-count" class="pill">0개 완료</span>
             </div>
             <div id="checklist-groups" class="checklist-groups"></div>
           </section>
 
           <section class="panel action-panel">
-            <h2>권장 액션</h2>
+            <h2>계약 전 확인 권장 사항</h2>
             <ul id="recommended-actions" class="action-list"></ul>
             <button class="secondary-button" id="download-report" type="button">
               결과 리포트 저장

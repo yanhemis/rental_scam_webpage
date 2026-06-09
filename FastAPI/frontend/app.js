@@ -1,4 +1,4 @@
-const API_BASE = "http://127.0.0.1:8000/api";
+const API_BASE = "http://3.229.176.126:8000/api";
 const DEMO_DOCUMENT_ID = "demo-document";
 
 const state = {
@@ -9,6 +9,8 @@ const state = {
   uploadResult: null,
   analysis: null,
   report: null,
+  authToken: localStorage.getItem("access_token"),
+  authUser: JSON.parse(localStorage.getItem("auth_user") || "null"),
 };
 
 const elements = {
@@ -35,13 +37,25 @@ const elements = {
   fixedDate: document.querySelector("#fixed-date"),
   moveIn: document.querySelector("#move-in"),
   seniorRights: document.querySelector("#senior-rights"),
+  authForms: document.querySelector("#auth-forms"),
+  authUser: document.querySelector("#auth-user"),
+  authUserName: document.querySelector("#auth-user-name"),
+  authMessage: document.querySelector("#auth-message"),
+  loginEmail: document.querySelector("#login-email"),
+  loginPassword: document.querySelector("#login-password"),
+  loginButton: document.querySelector("#login-button"),
+  signupName: document.querySelector("#signup-name"),
+  signupEmail: document.querySelector("#signup-email"),
+  signupPassword: document.querySelector("#signup-password"),
+  signupButton: document.querySelector("#signup-button"),
+  logoutButton: document.querySelector("#logout-button"),
 };
 
 const fallbackReport = {
   document_id: DEMO_DOCUMENT_ID,
   report_id: "report-demo-document",
   summary: "계약서 특약과 보증금 반환 조건에서 표준 계약서와 다른 위험 문구가 확인되었습니다.",
-  risk_overview: "기본 위험 20점에 특약 위험 12점이 더해졌고, 완료한 체크리스트로 0점이 차감되었습니다.",
+  risk_overview: "계약서 내 위험 문구와 확인 필요 항목을 기준으로 참고 지표를 산출했습니다.",
   risk_score: {
     base_score: 20,
     special_terms_delta: 12,
@@ -177,6 +191,104 @@ function checkItem(id, label, description, points, actionLabel, url) {
   };
 }
 
+
+function isLoggedIn() {
+  return Boolean(state.authToken && state.authUser);
+}
+
+function setAuthMessage(message, type = "") {
+  if (!elements.authMessage) return;
+  elements.authMessage.textContent = message;
+  elements.authMessage.className = `auth-message ${type}`.trim();
+}
+
+function saveAuthSession(data) {
+  state.authToken = data.access_token;
+  state.authUser = data.user;
+  localStorage.setItem("access_token", data.access_token);
+  localStorage.setItem("auth_user", JSON.stringify(data.user));
+  renderAuth();
+}
+
+function clearAuthSession() {
+  state.authToken = null;
+  state.authUser = null;
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("auth_user");
+  renderAuth();
+}
+
+function renderAuth() {
+  if (!elements.authForms || !elements.authUser) return;
+
+  if (isLoggedIn()) {
+    elements.authForms.classList.add("hidden");
+    elements.authUser.classList.remove("hidden");
+    elements.authUserName.textContent = state.authUser.name || state.authUser.email || "사용자";
+    setAuthMessage("로그인 완료", "success");
+    return;
+  }
+
+  elements.authForms.classList.remove("hidden");
+  elements.authUser.classList.add("hidden");
+  setAuthMessage("로그인 후 계약서 분석을 이용할 수 있습니다.");
+}
+
+async function requestAuth(path, payload) {
+  const response = await fetch(`${API_BASE}/auth/${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.detail || "인증 요청에 실패했습니다.");
+  }
+
+  return data;
+}
+
+async function handleLogin() {
+  const email = elements.loginEmail.value.trim();
+  const password = elements.loginPassword.value;
+
+  if (!email || !password) {
+    setAuthMessage("이메일과 비밀번호를 입력하세요.", "error");
+    return;
+  }
+
+  try {
+    setAuthMessage("로그인 중입니다.");
+    const data = await requestAuth("login", { email, password });
+    saveAuthSession(data);
+  } catch (error) {
+    setAuthMessage(error.message, "error");
+  }
+}
+
+async function handleSignup() {
+  const name = elements.signupName.value.trim();
+  const email = elements.signupEmail.value.trim();
+  const password = elements.signupPassword.value;
+
+  if (!name || !email || !password) {
+    setAuthMessage("이름, 이메일, 비밀번호를 모두 입력하세요.", "error");
+    return;
+  }
+
+  try {
+    setAuthMessage("회원가입 중입니다.");
+    const data = await requestAuth("signup", { name, email, password });
+    saveAuthSession(data);
+  } catch (error) {
+    setAuthMessage(error.message, "error");
+  }
+}
+
 function buildReportUrl(documentId) {
   const url = new URL(`${API_BASE}/reports/${documentId}`);
   state.completedChecks.forEach((id) => url.searchParams.append("completed_checks", id));
@@ -201,6 +313,12 @@ async function fetchReport(documentId = state.documentId) {
 }
 
 async function uploadSelectedFile() {
+  if (!isLoggedIn()) {
+    setStatus("로그인 후 계약서 분석을 이용할 수 있습니다.");
+    setAuthMessage("먼저 로그인 또는 회원가입을 진행하세요.", "error");
+    return;
+  }
+
   if (!state.selectedFile) {
     state.documentId = DEMO_DOCUMENT_ID;
     await fetchReport(DEMO_DOCUMENT_ID);
@@ -279,7 +397,7 @@ function applyFallbackScore() {
   const finalScore = Math.max(0, fallbackReport.risk_score.base_score + fallbackReport.risk_score.special_terms_delta - checklistReduction);
   return {
     ...fallbackReport,
-    risk_overview: `기본 위험 20점에 특약 위험 12점이 더해졌고, 완료한 체크리스트로 ${checklistReduction}점이 차감되었습니다.`,
+    risk_overview: `계약서 내 위험 문구와 확인 필요 항목을 기준으로 참고 지표를 산출했습니다.`,
     risk_score: {
       ...fallbackReport.risk_score,
       checklist_reduction: checklistReduction,
@@ -461,7 +579,7 @@ function renderRisk() {
   elements.headerScore.textContent = `${score.final_score}점`;
   elements.headerScoreLabel.textContent = label;
   elements.riskScore.textContent = `${score.final_score}점`;
-  elements.riskFormula.textContent = `기본 ${score.base_score} + 특약 ${score.special_terms_delta} - 체크 ${score.checklist_reduction}`;
+  elements.riskFormula.textContent = `위험 문구 + 확인 필요 항목 반영`;
   elements.riskLevelPill.textContent = label;
   elements.riskLevelPill.className = `pill ${score.risk_level === "danger" ? "danger" : score.risk_level === "normal" ? "success" : "warning"}`;
 }
@@ -852,4 +970,12 @@ elements.fileInput.addEventListener("change", (event) => {
 elements.analyzeButton.addEventListener("click", uploadSelectedFile);
 elements.downloadReport.addEventListener("click", downloadReport);
 
+elements.loginButton?.addEventListener("click", handleLogin);
+elements.signupButton?.addEventListener("click", handleSignup);
+elements.logoutButton?.addEventListener("click", () => {
+  clearAuthSession();
+  setStatus("로그아웃되었습니다.");
+});
+
+renderAuth();
 fetchReport(DEMO_DOCUMENT_ID);
