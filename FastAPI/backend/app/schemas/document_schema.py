@@ -69,6 +69,14 @@ class ContractFieldExtractionResult(BaseModel):
     needs_review: bool = True
 
 
+class DocumentPreviewPage(BaseModel):
+    page_number: int
+    width: int
+    height: int
+    image_data_url: str
+    coordinate_system: str = "source"
+
+
 class DocumentUploadResponse(BaseModel):
     request_id: str
     document_id: str
@@ -81,6 +89,7 @@ class DocumentUploadResponse(BaseModel):
     text_preview: str
     full_text: str
     contract_fields: ContractFieldExtractionResult | None = None
+    preview_pages: list[DocumentPreviewPage] = Field(default_factory=list)
     text_locations: list[ExtractedTextLocation] = Field(default_factory=list)
     redactions: list[RedactionTarget] = Field(default_factory=list)
     redaction_metrics: RedactionMetrics = Field(default_factory=RedactionMetrics)

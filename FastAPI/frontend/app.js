@@ -534,6 +534,11 @@ function renderSpecialTerms() {
 }
 
 function renderDocumentContent() {
+  if (state.uploadResult?.preview_pages?.length) {
+    renderPreviewPages();
+    return;
+  }
+
   const blocks = Array.from(elements.documentViewer.querySelectorAll(".doc-cell, .doc-wide"));
   const { snippets, qualityLabel } = buildDocumentSnippets();
   blocks.forEach((block, index) => {
@@ -552,6 +557,39 @@ function renderDocumentContent() {
   toolbar.textContent = state.uploadResult
     ? `OCR ${locationCount}개 · 마스킹 ${redactionCount}개 · ${qualityLabel}`
     : "업로드 후 OCR 결과 표시";
+}
+
+function renderPreviewPages() {
+  const pages = state.uploadResult?.preview_pages || [];
+  const locationCount = state.uploadResult?.text_locations?.length || 0;
+  const redactionCount =
+    state.uploadResult?.redaction_metrics?.total_redaction_count ||
+    state.uploadResult?.redactions?.length ||
+    0;
+
+  elements.documentViewer.innerHTML = "";
+  const toolbar = document.createElement("div");
+  toolbar.className = "doc-toolbar";
+  toolbar.textContent = `OCR ${locationCount}개 · 마스킹 ${redactionCount}개 · 원본 보기`;
+  elements.documentViewer.append(toolbar);
+
+  const stack = document.createElement("div");
+  stack.className = "preview-stack";
+  pages.forEach((page) => {
+    const pageEl = document.createElement("section");
+    pageEl.className = "preview-page";
+    pageEl.dataset.pageNumber = String(page.page_number);
+    pageEl.dataset.width = String(page.width);
+    pageEl.dataset.height = String(page.height);
+    pageEl.dataset.coordinateSystem = page.coordinate_system || "";
+    pageEl.innerHTML = `
+      <img src="${page.image_data_url}" alt="계약서 ${page.page_number}페이지" />
+      <div class="preview-overlay"></div>
+      <span class="page-badge">${page.page_number}</span>
+    `;
+    stack.append(pageEl);
+  });
+  elements.documentViewer.append(stack);
 }
 
 function buildDocumentSnippets() {
@@ -637,6 +675,11 @@ function isReadableContractSnippet(value) {
 }
 
 function renderDocumentOverlays() {
+  if (state.uploadResult?.preview_pages?.length) {
+    renderPreviewOverlays();
+    return;
+  }
+
   elements.documentViewer.querySelectorAll(".redaction-box, .highlight-box").forEach((node) => node.remove());
   const redactions = state.uploadResult?.redactions || [];
   redactions.slice(0, 10).forEach((redaction, index) => {
@@ -654,6 +697,78 @@ function renderDocumentOverlays() {
     Object.assign(box.style, mockHighlightPlacement(index));
     elements.documentViewer.append(box);
   });
+}
+
+function renderPreviewOverlays() {
+  elements.documentViewer.querySelectorAll(".preview-overlay").forEach((overlay) => {
+    overlay.innerHTML = "";
+  });
+
+  const redactions = state.uploadResult?.redactions || [];
+  redactions.forEach((redaction) => {
+    const pageEl = elements.documentViewer.querySelector(
+      `.preview-page[data-page-number="${redaction.page_number}"]`,
+    );
+    if (!pageEl) return;
+    if (!isCompatibleCoordinateSystem(redaction.coordinate_system, pageEl.dataset.coordinateSystem)) return;
+
+    const box = bboxToPercentBox(redaction.value_bbox, pageEl);
+    if (!box) return;
+    const overlay = pageEl.querySelector(".preview-overlay");
+    const mask = document.createElement("span");
+    mask.className = `redaction-box ${redaction.mask_style || "opaque"} ${redaction.sensitivity || "high"}`;
+    mask.title = redaction.label_text || redaction.label_type || "masked";
+    Object.assign(mask.style, box);
+    overlay.append(mask);
+  });
+
+  collectFieldEvidenceBoxes().forEach((evidence) => {
+    const pageEl = elements.documentViewer.querySelector(
+      `.preview-page[data-page-number="${evidence.page_number}"]`,
+    );
+    if (!pageEl) return;
+    if (!isCompatibleCoordinateSystem(evidence.coordinate_system, pageEl.dataset.coordinateSystem)) return;
+    const bbox = evidence.value_bbox?.length === 4 ? evidence.value_bbox : evidence.bbox;
+    const box = bboxToPercentBox(bbox, pageEl);
+    if (!box) return;
+    const overlay = pageEl.querySelector(".preview-overlay");
+    const marker = document.createElement("span");
+    marker.className = "field-evidence-box";
+    Object.assign(marker.style, box);
+    overlay.append(marker);
+  });
+}
+
+function collectFieldEvidenceBoxes() {
+  const fields = state.uploadResult?.contract_fields?.fields || {};
+  return Object.values(fields)
+    .flatMap((field) => field?.evidence || [])
+    .filter((evidence) => evidence?.page_number && (evidence.value_bbox?.length === 4 || evidence.bbox?.length === 4));
+}
+
+function isCompatibleCoordinateSystem(source, target) {
+  if (!source || !target) return false;
+  if (source === target) return true;
+  return source.includes(target) || target.includes(source);
+}
+
+function bboxToPercentBox(bbox, pageEl) {
+  if (!Array.isArray(bbox) || bbox.length !== 4) return null;
+  const width = Number(pageEl.dataset.width);
+  const height = Number(pageEl.dataset.height);
+  if (!width || !height) return null;
+  const [x0, y0, x1, y1] = bbox.map(Number);
+  if (![x0, y0, x1, y1].every(Number.isFinite) || x1 <= x0 || y1 <= y0) return null;
+  return {
+    left: `${clamp((x0 / width) * 100, 0, 100)}%`,
+    top: `${clamp((y0 / height) * 100, 0, 100)}%`,
+    width: `${clamp(((x1 - x0) / width) * 100, 0, 100)}%`,
+    height: `${clamp(((y1 - y0) / height) * 100, 0, 100)}%`,
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function mockPlacement(index) {

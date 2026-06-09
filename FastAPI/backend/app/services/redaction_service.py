@@ -248,11 +248,11 @@ def _page_coordinate_extents(locations: list[ExtractedTextLocation]) -> dict[int
         page_locations = [item for item in locations if item.page_number == page_number]
         max_x = max((item.bbox[2] for item in page_locations), default=STANDARD_CONTRACT_TEMPLATE_SIZE[0])
         max_y = max((item.bbox[3] for item in page_locations), default=STANDARD_CONTRACT_TEMPLATE_SIZE[1])
-        # OCR text rarely touches the page edge, so keep at least the template aspect size.
-        extents[page_number] = (
-            max(max_x, STANDARD_CONTRACT_TEMPLATE_SIZE[0]),
-            max(max_y, STANDARD_CONTRACT_TEMPLATE_SIZE[1]),
-        )
+        # OCR text rarely reaches the page edge. Add a small margin and keep the
+        # standard A4-like aspect ratio so template redactions align with preview images.
+        estimated_width = max_x * 1.08
+        estimated_height = max(estimated_width * 1.414, max_y * 1.07)
+        extents[page_number] = (estimated_width, estimated_height)
     return extents
 
 

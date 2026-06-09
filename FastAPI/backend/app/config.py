@@ -47,6 +47,8 @@ class Settings:
     ocr_threshold_bias = int(os.getenv("OCR_THRESHOLD_BIAS", "165"))
     ocr_crop_border_ratio = float(os.getenv("OCR_CROP_BORDER_RATIO", "0.02"))
     pdf_ocr_render_scale = float(os.getenv("PDF_OCR_RENDER_SCALE", "2.0"))
+    document_preview_max_pages = int(os.getenv("DOCUMENT_PREVIEW_MAX_PAGES", "4"))
+    document_preview_jpeg_quality = int(os.getenv("DOCUMENT_PREVIEW_JPEG_QUALITY", "72"))
     ocr_rotation_angles = tuple(
         int(angle.strip())
         for angle in os.getenv("OCR_ROTATION_ANGLES", "0,-3,3").split(",")

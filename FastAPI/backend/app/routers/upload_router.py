@@ -17,6 +17,7 @@ from app.schemas.document_schema import (
 )
 from app.services import (
     contract_field_service,
+    document_preview_service,
     extract_service,
     file_service,
     metrics_service,
@@ -106,6 +107,10 @@ async def _handle_upload(
             extracted_text_quality=extraction_result.quality,
         ),
     )
+    preview_pages = document_preview_service.build_document_preview_pages(
+        saved_path,
+        file.content_type,
+    )
     raw_file_deleted = False
     if settings.delete_raw_upload_after_ocr:
         raw_file_deleted = file_service.delete_upload_file(saved_path)
@@ -136,6 +141,7 @@ async def _handle_upload(
         retry_count=metadata.retry_count,
         raw_file_deleted=raw_file_deleted,
         redaction_count=len(extraction_result.redactions),
+        preview_page_count=len(preview_pages),
         document_type=contract_fields.profile.document_type.value,
         missing_field_count=len(contract_fields.missing_fields),
     )
@@ -153,6 +159,7 @@ async def _handle_upload(
         text_preview=preview_text,
         full_text=extraction_result.text,
         contract_fields=contract_fields,
+        preview_pages=preview_pages,
         text_locations=extraction_result.locations,
         redactions=extraction_result.redactions,
         redaction_metrics=extraction_result.redaction_metrics,

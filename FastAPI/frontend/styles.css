@@ -363,7 +363,7 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #f8fbff;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .doc-toolbar {
@@ -438,6 +438,71 @@ h2 {
 
 .redaction-box {
   background: rgba(8, 21, 47, 0.72);
+}
+
+.redaction-box.mosaic {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(8, 21, 47, 0.82) 0 4px,
+      rgba(8, 21, 47, 0.58) 4px 8px
+    );
+}
+
+.redaction-box.translucent {
+  background: rgba(37, 99, 235, 0.28);
+  border: 1px solid rgba(37, 99, 235, 0.55);
+}
+
+.preview-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.preview-page {
+  position: relative;
+  width: min(100%, 860px);
+  margin: 0 auto;
+  border: 1px solid #cbd7e8;
+  border-radius: 4px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(12, 26, 54, 0.12);
+  overflow: hidden;
+}
+
+.preview-page img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.preview-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.page-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(7, 21, 47, 0.82);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.field-evidence-box {
+  position: absolute;
+  border: 2px solid rgba(245, 184, 46, 0.95);
+  background: rgba(245, 184, 46, 0.12);
+  border-radius: 3px;
 }
 
 .highlight-box.high {
