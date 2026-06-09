@@ -7,6 +7,7 @@ from app.config import Settings
 from app.core.logging_config import get_request_id, log_event
 from app.dependencies import get_app_settings
 from app.schemas.document_schema import (
+    ContractDocumentType,
     DocumentMetadataRecord,
     DocumentMetadataSyncResponse,
     DocumentSourceType,
@@ -14,7 +15,13 @@ from app.schemas.document_schema import (
     DocumentStatusUpdateRequest,
     DocumentUploadResponse,
 )
-from app.services import extract_service, file_service, metrics_service, storage_service
+from app.services import (
+    contract_field_service,
+    extract_service,
+    file_service,
+    metrics_service,
+    storage_service,
+)
 
 router = APIRouter(tags=["documents"])
 
@@ -36,6 +43,7 @@ async def _handle_upload(
     settings: Settings,
     source: DocumentSourceType | None,
     user_id: str | None,
+    document_type: ContractDocumentType | None,
 ) -> DocumentUploadResponse:
     request_id = getattr(request.state, "request_id", get_request_id())
 
@@ -110,6 +118,12 @@ async def _handle_upload(
             )
             storage_service.replace_document_metadata(metadata)
 
+    contract_fields = contract_field_service.extract_contract_fields(
+        extraction_result.text,
+        extraction_result.locations,
+        document_type=document_type,
+    )
+
     metrics_service.record_metric("UploadSuccessCount")
     log_event(
         "document_uploaded",
@@ -122,6 +136,8 @@ async def _handle_upload(
         retry_count=metadata.retry_count,
         raw_file_deleted=raw_file_deleted,
         redaction_count=len(extraction_result.redactions),
+        document_type=contract_fields.profile.document_type.value,
+        missing_field_count=len(contract_fields.missing_fields),
     )
 
     preview_text = extraction_result.text[:500] if extraction_result.text else ""
@@ -136,6 +152,7 @@ async def _handle_upload(
         status=metadata.status,
         text_preview=preview_text,
         full_text=extraction_result.text,
+        contract_fields=contract_fields,
         text_locations=extraction_result.locations,
         redactions=extraction_result.redactions,
         redaction_metrics=extraction_result.redaction_metrics,
@@ -151,9 +168,10 @@ async def upload_document(
     file: UploadFile = File(...),
     source: DocumentSourceType | None = Form(default=None),
     user_id: str | None = Form(default=None),
+    document_type: ContractDocumentType | None = Form(default=ContractDocumentType.unknown),
     settings: Settings = Depends(get_app_settings),
 ):
-    return await _handle_upload(request, file, settings, source, user_id)
+    return await _handle_upload(request, file, settings, source, user_id, document_type)
 
 
 @router.post("/upload", response_model=DocumentUploadResponse)
@@ -162,9 +180,10 @@ async def upload_document_legacy(
     file: UploadFile = File(...),
     source: DocumentSourceType | None = Form(default=None),
     user_id: str | None = Form(default=None),
+    document_type: ContractDocumentType | None = Form(default=ContractDocumentType.unknown),
     settings: Settings = Depends(get_app_settings),
 ):
-    return await _handle_upload(request, file, settings, source, user_id)
+    return await _handle_upload(request, file, settings, source, user_id, document_type)
 
 
 @router.get("/documents/metadata", response_model=list[DocumentMetadataRecord])

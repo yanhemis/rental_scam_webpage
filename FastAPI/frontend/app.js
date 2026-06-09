@@ -14,6 +14,7 @@ const elements = {
   fileInput: document.querySelector("#contract-file"),
   fileName: document.querySelector("#file-name"),
   fileMeta: document.querySelector("#file-meta"),
+  documentType: document.querySelector("#document-type"),
   analyzeButton: document.querySelector("#analyze-button"),
   status: document.querySelector("#connection-status"),
   headerScore: document.querySelector("#header-score"),
@@ -208,6 +209,7 @@ async function uploadSelectedFile() {
   const body = new FormData();
   body.append("file", state.selectedFile);
   body.append("source", state.selectedFile.type === "application/pdf" ? "pdf" : "mobile_scan");
+  body.append("document_type", elements.documentType?.value || "unknown");
 
   try {
     setStatus("OCR 업로드 분석 중");
@@ -286,13 +288,38 @@ function render() {
 }
 
 function renderExtractedSummary() {
-  const extraction = extractKeyInfo(state.uploadResult?.full_text || "");
+  const extraction = extractStructuredKeyInfo(state.uploadResult?.contract_fields) || extractKeyInfo(state.uploadResult?.full_text || "");
   elements.contractType.textContent = extraction.contractType;
   elements.deposit.textContent = extraction.deposit;
   elements.leasePeriod.textContent = extraction.leasePeriod;
   elements.fixedDate.textContent = extraction.fixedDate;
   elements.moveIn.textContent = extraction.moveIn;
   elements.seniorRights.textContent = extraction.seniorRights;
+}
+
+function extractStructuredKeyInfo(contractFields) {
+  const fields = contractFields?.fields;
+  if (!fields) return null;
+  return {
+    contractType: fieldDisplay(fields.contract_type),
+    deposit: fieldDisplay(fields.deposit_amount),
+    leasePeriod: buildLeasePeriod(fields.lease_start_date, fields.lease_end_date),
+    fixedDate: fieldDisplay(fields.confirmed_date_status),
+    moveIn: fieldDisplay(fields.move_in_report_status),
+    seniorRights: fieldDisplay(fields.priority_rights),
+  };
+}
+
+function fieldDisplay(field) {
+  if (!field) return "확인 필요";
+  return field.display_value || field.value || "확인 필요";
+}
+
+function buildLeasePeriod(startField, endField) {
+  const start = fieldDisplay(startField);
+  const end = fieldDisplay(endField);
+  if (start === "확인 필요" && end === "확인 필요") return "확인 필요";
+  return `${start} ~ ${end}`;
 }
 
 function extractKeyInfo(text) {

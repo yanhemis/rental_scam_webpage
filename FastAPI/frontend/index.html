@@ -36,6 +36,16 @@
               <strong id="file-name">계약서를 선택하세요</strong>
               <span id="file-meta">선택 후 분석 실행</span>
             </label>
+            <label class="document-type-field" for="document-type">
+              <span>계약 종류</span>
+              <select id="document-type">
+                <option value="jeonse">전세</option>
+                <option value="monthly_rent">월세</option>
+                <option value="mixed_rent">반전세</option>
+                <option value="sale">매매</option>
+                <option value="unknown">모름</option>
+              </select>
+            </label>
             <button id="analyze-button" class="primary-button" type="button">
               분석 실행
             </button>

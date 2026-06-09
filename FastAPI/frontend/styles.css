@@ -27,7 +27,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -247,6 +248,34 @@ h2 {
 .special-note {
   color: var(--muted);
   font-size: 13px;
+}
+
+.document-type-field {
+  display: grid;
+  grid-template-columns: 1fr 150px;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.document-type-field span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.document-type-field select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #cbd7e8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink);
+  font-weight: 800;
 }
 
 .primary-button,

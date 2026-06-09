@@ -6,6 +6,14 @@ from pydantic import BaseModel, Field
 from app.schemas.extraction_schema import ExtractedTextLocation, RedactionMetrics, RedactionTarget
 
 
+class ContractDocumentType(str, Enum):
+    jeonse = "jeonse"
+    monthly_rent = "monthly_rent"
+    mixed_rent = "mixed_rent"
+    sale = "sale"
+    unknown = "unknown"
+
+
 class DocumentSourceType(str, Enum):
     pdf = "pdf"
     mobile_scan = "mobile_scan"
@@ -23,6 +31,44 @@ class DocumentStatusType(str, Enum):
     failed = "failed"
 
 
+class ContractFieldEvidence(BaseModel):
+    page_number: int
+    bbox: list[float] = Field(default_factory=list)
+    coordinate_system: str = "source"
+    span_ids: list[str] = Field(default_factory=list)
+    text: str = ""
+    label_text: str | None = None
+    value_text: str | None = None
+    label_bbox: list[float] | None = None
+    value_bbox: list[float] | None = None
+    match_confidence: float = 0.0
+    ocr_confidence: float | None = None
+
+
+class ContractFieldValue(BaseModel):
+    value: str | int | float | bool | list[str] | None = None
+    display_value: str = "확인 필요"
+    confidence: float = 0.0
+    needs_review: bool = True
+    evidence: list[ContractFieldEvidence] = Field(default_factory=list)
+
+
+class ContractFieldProfile(BaseModel):
+    document_type: ContractDocumentType = ContractDocumentType.unknown
+    label: str = "모름"
+    required_fields: list[str] = Field(default_factory=list)
+    likely_fields: list[str] = Field(default_factory=list)
+
+
+class ContractFieldExtractionResult(BaseModel):
+    profile: ContractFieldProfile
+    fields: dict[str, ContractFieldValue] = Field(default_factory=dict)
+    field_groups: dict[str, dict[str, ContractFieldValue]] = Field(default_factory=dict)
+    missing_fields: list[str] = Field(default_factory=list)
+    low_confidence_fields: list[str] = Field(default_factory=list)
+    needs_review: bool = True
+
+
 class DocumentUploadResponse(BaseModel):
     request_id: str
     document_id: str
@@ -34,6 +80,7 @@ class DocumentUploadResponse(BaseModel):
     status: DocumentStatusType
     text_preview: str
     full_text: str
+    contract_fields: ContractFieldExtractionResult | None = None
     text_locations: list[ExtractedTextLocation] = Field(default_factory=list)
     redactions: list[RedactionTarget] = Field(default_factory=list)
     redaction_metrics: RedactionMetrics = Field(default_factory=RedactionMetrics)
