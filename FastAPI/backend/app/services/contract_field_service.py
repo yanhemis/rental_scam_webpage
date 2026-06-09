@@ -236,6 +236,14 @@ def extract_contract_fields(
     fields["priority_rights"] = _status_field(text, locations, "priority_rights", ("선순위", "근저당", "가압류", "압류"))
     fields["special_terms"] = _special_terms_field(text, locations)
     fields["risk_flags"] = _risk_flags_field(text, locations)
+    axis_candidates = _extract_axis_field_candidates(locations)
+    if locations:
+        for amount_field_id in ("deposit_amount", "monthly_rent", "sale_price"):
+            if amount_field_id in fields and amount_field_id not in axis_candidates:
+                fields[amount_field_id] = _missing_field(amount_field_id)
+    fields.update(_merge_axis_candidates(fields, axis_candidates))
+    if fields["special_terms"].value in (None, ""):
+        fields["special_terms"] = _special_terms_from_risk_flags(fields["risk_flags"])
 
     required = {field_id: fields.get(field_id, _missing_field(field_id)) for field_id in profile.required_fields}
     likely = {field_id: fields.get(field_id, _missing_field(field_id)) for field_id in profile.likely_fields}
@@ -432,6 +440,247 @@ def _risk_flags_field(text: str, locations: list[ExtractedTextLocation]) -> Cont
     if not hits:
         return _field([], "없음", 0.5, True, [])
     return _field(hits, ", ".join(hits), 0.7, True, _evidence(locations, tuple(hits), " ".join(hits)))
+
+
+def _special_terms_from_risk_flags(risk_flags: ContractFieldValue) -> ContractFieldValue:
+    if not risk_flags.evidence:
+        return _missing_field("special_terms")
+    evidence_text = risk_flags.evidence[0].text.strip()
+    if len(evidence_text) < 12:
+        return _missing_field("special_terms")
+    return _field(
+        evidence_text[:500],
+        "특약 후보",
+        0.68,
+        True,
+        risk_flags.evidence,
+    )
+
+
+AXIS_LABELS: dict[str, tuple[str, ...]] = {
+    "deposit_amount": ("보증금", "보승금", "보중금", "임대보증금"),
+    "monthly_rent": ("월세", "차임", "월차임", "월 차임"),
+    "lease_period": ("임대차기간", "임대차 기간", "존속기간", "기간"),
+    "address": ("소재지", "소 제 지", "주소", "부동산의표시", "부동산의 표시"),
+    "special_terms": ("특약", "특약사항", "특약 사항"),
+}
+
+
+def _merge_axis_candidates(
+    fields: dict[str, ContractFieldValue],
+    candidates: dict[str, ContractFieldValue],
+) -> dict[str, ContractFieldValue]:
+    merged: dict[str, ContractFieldValue] = {}
+    for field_id, candidate in candidates.items():
+        current = fields.get(field_id)
+        if current is None or current.value in (None, "") or candidate.confidence > current.confidence:
+            merged[field_id] = candidate
+    return merged
+
+
+def _extract_axis_field_candidates(
+    locations: list[ExtractedTextLocation],
+) -> dict[str, ContractFieldValue]:
+    if not locations:
+        return {}
+
+    lines = _group_axis_lines(locations)
+    candidates: dict[str, ContractFieldValue] = {}
+
+    for line_index, line in enumerate(lines):
+        line_text = _line_text(line)
+        right_context = _right_context_for_labels(line, AXIS_LABELS["deposit_amount"])
+        if right_context:
+            amount = _extract_amount_from_text(right_context[0])
+            if amount is not None and _amount_in_expected_range("deposit_amount", amount):
+                candidates["deposit_amount"] = _axis_field(
+                    amount,
+                    _format_won(amount),
+                    0.86,
+                    right_context[1],
+                    "deposit_amount",
+                )
+
+        right_context = _right_context_for_labels(line, AXIS_LABELS["monthly_rent"])
+        if right_context:
+            amount = _extract_amount_from_text(right_context[0])
+            if amount is not None and _amount_in_expected_range("monthly_rent", amount):
+                candidates["monthly_rent"] = _axis_field(
+                    amount,
+                    _format_won(amount),
+                    0.84,
+                    right_context[1],
+                    "monthly_rent",
+                )
+
+        if _line_has_label(line, AXIS_LABELS["lease_period"]):
+            period_context = " ".join(
+                _line_text(item)
+                for item in lines[line_index : min(len(lines), line_index + 3)]
+            )
+            dates = list(_iter_dates(period_context))
+            if len(dates) >= 2 and dates[0][1] != dates[1][1]:
+                evidence_locations = _merge_location_window(lines[line_index : min(len(lines), line_index + 3)])
+                evidence = _axis_evidence(evidence_locations, "임대차기간", f"{dates[0][0]} {dates[1][0]}", 0.78)
+                candidates["lease_start_date"] = _field(dates[0][1], dates[0][1], 0.78, False, evidence)
+                candidates["lease_end_date"] = _field(dates[1][1], dates[1][1], 0.78, False, evidence)
+
+        if _line_has_label(line, AXIS_LABELS["address"]):
+            context_locations = _merge_location_window(lines[line_index : min(len(lines), line_index + 2)])
+            context_text = " ".join(item.text for item in context_locations)
+            address = _extract_address_candidate(context_text)
+            if address:
+                candidates["address"] = _axis_field(address, address, 0.74, context_locations, "address")
+
+        if _line_has_label(line, AXIS_LABELS["special_terms"]):
+            special_locations = _collect_special_term_locations(lines, line_index)
+            special_text = " ".join(item.text for item in special_locations).strip()
+            if len(special_text) >= 12:
+                candidates["special_terms"] = _axis_field(
+                    special_text[:500],
+                    "특약 추출",
+                    0.76,
+                    special_locations,
+                    "special_terms",
+                )
+
+    return candidates
+
+
+def _group_axis_lines(locations: list[ExtractedTextLocation]) -> list[list[ExtractedTextLocation]]:
+    sorted_locations = sorted(locations, key=lambda item: (item.page_number, _y_center(item), item.bbox[0]))
+    lines: list[list[ExtractedTextLocation]] = []
+
+    for location in sorted_locations:
+        if not location.text or location.text == "[REDACTED]":
+            continue
+        if not lines:
+            lines.append([location])
+            continue
+
+        last_line = lines[-1]
+        same_page = last_line[0].page_number == location.page_number
+        avg_height = sum(max(1.0, item.bbox[3] - item.bbox[1]) for item in last_line) / len(last_line)
+        tolerance = max(10.0, avg_height * 0.75)
+        if same_page and abs(_y_center(location) - _line_y_center(last_line)) <= tolerance:
+            last_line.append(location)
+        else:
+            lines.append([location])
+
+    return [sorted(line, key=lambda item: item.bbox[0]) for line in lines]
+
+
+def _line_has_label(line: list[ExtractedTextLocation], labels: tuple[str, ...]) -> bool:
+    compact_line = _compact(_line_text(line))
+    return any(_compact(label) in compact_line for label in labels)
+
+
+def _right_context_for_labels(
+    line: list[ExtractedTextLocation],
+    labels: tuple[str, ...],
+) -> tuple[str, list[ExtractedTextLocation]] | None:
+    label_indexes = [
+        index
+        for index, item in enumerate(line)
+        if any(_compact(label) in _compact(item.text) for label in labels)
+    ]
+    if not label_indexes and _line_has_label(line, labels):
+        label_indexes = [0]
+    if not label_indexes:
+        return None
+
+    label_index = label_indexes[-1]
+    label_right = line[label_index].bbox[2]
+    right_items = [
+        item
+        for item in line[label_index + 1 :]
+        if item.bbox[0] >= label_right - 2
+    ]
+    if not right_items:
+        return None
+    return " ".join(item.text for item in right_items), right_items
+
+
+def _axis_field(
+    value: str | int | float | bool | list | None,
+    display_value: str,
+    confidence: float,
+    locations: list[ExtractedTextLocation],
+    label_text: str,
+) -> ContractFieldValue:
+    return _field(
+        value,
+        display_value,
+        confidence,
+        confidence < 0.8,
+        _axis_evidence(locations, label_text, display_value, confidence),
+    )
+
+
+def _axis_evidence(
+    locations: list[ExtractedTextLocation],
+    label_text: str,
+    value_text: str,
+    confidence: float,
+) -> list[ContractFieldEvidence]:
+    if not locations:
+        return []
+    ocr_values = [item.confidence for item in locations if item.confidence is not None]
+    return [
+        ContractFieldEvidence(
+            page_number=locations[0].page_number,
+            bbox=_union_bbox(locations),
+            coordinate_system=locations[0].coordinate_system,
+            span_ids=[item.span_id for item in locations],
+            text=" ".join(item.text for item in locations),
+            label_text=label_text,
+            value_text=value_text,
+            value_bbox=_union_bbox(locations),
+            match_confidence=confidence,
+            ocr_confidence=sum(ocr_values) / len(ocr_values) if ocr_values else None,
+        )
+    ]
+
+
+def _collect_special_term_locations(
+    lines: list[list[ExtractedTextLocation]],
+    start_index: int,
+) -> list[ExtractedTextLocation]:
+    collected: list[ExtractedTextLocation] = []
+    start_page = lines[start_index][0].page_number
+    for line in lines[start_index : min(len(lines), start_index + 10)]:
+        if line[0].page_number != start_page:
+            break
+        text = _compact(_line_text(line))
+        if collected and any(stop in text for stop in ("임대인", "임차인", "중개", "성명", "주소", "전화")):
+            break
+        collected.extend(line)
+    return collected
+
+
+def _extract_address_candidate(text: str) -> str | None:
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    match = re.search(r"((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|전라|경상|제주|전주)[^\\n]{4,80})", cleaned)
+    if match:
+        value = match.group(1).strip(" ,.")
+        return value if _looks_like_address(_compact(value)) else None
+    return None
+
+
+def _merge_location_window(lines: list[list[ExtractedTextLocation]]) -> list[ExtractedTextLocation]:
+    return [item for line in lines for item in line]
+
+
+def _line_text(line: list[ExtractedTextLocation]) -> str:
+    return " ".join(item.text for item in line)
+
+
+def _y_center(location: ExtractedTextLocation) -> float:
+    return (location.bbox[1] + location.bbox[3]) / 2
+
+
+def _line_y_center(line: list[ExtractedTextLocation]) -> float:
+    return sum(_y_center(item) for item in line) / len(line)
 
 
 def _extract_amount_from_text(text: str) -> int | None:

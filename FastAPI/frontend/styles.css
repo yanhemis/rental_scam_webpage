@@ -431,7 +431,6 @@ h2 {
 
 .redaction-box,
 .highlight-box,
-.purpose-zone,
 .field-evidence-box {
   position: absolute;
   border-radius: 3px;
@@ -483,28 +482,6 @@ h2 {
   position: absolute;
   inset: 0;
   pointer-events: none;
-}
-
-.purpose-zone {
-  z-index: 1;
-  mix-blend-mode: multiply;
-}
-
-.purpose-zone.extract {
-  background: rgba(250, 224, 72, 0.58);
-  border: 1px solid rgba(214, 170, 0, 0.7);
-}
-
-.purpose-zone.ai {
-  background: rgba(74, 179, 0, 0.7);
-  border: 1px solid rgba(46, 126, 0, 0.75);
-  border-radius: 22px;
-}
-
-.purpose-zone.privacy {
-  background: rgba(255, 41, 8, 0.72);
-  border: 1px solid rgba(195, 22, 0, 0.8);
-  border-radius: 18px;
 }
 
 .page-badge {
