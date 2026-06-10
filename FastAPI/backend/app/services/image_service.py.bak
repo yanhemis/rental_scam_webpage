@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Union,  Optional
+from typing import Optional
 from shutil import which
 
 import pytesseract
@@ -286,7 +286,7 @@ def _extract_locations_from_paddleocr_results(
     return locations
 
 
-def _paddle_bbox(boxes, polys, index: int) -> Optional[list[float]]:
+def _paddle_bbox(boxes, polys, index: int) -> list[float] | None:
     try:
         if boxes is not None and len(boxes) > index:
             values = [float(value) for value in list(boxes[index])]
@@ -368,10 +368,10 @@ def _ocr_paddleocr_image(
 def _ocr_data_candidates(
     image: Image.Image,
     lang: str,
-) -> tuple[str, Optional[dict], str]:
+) -> tuple[str, dict | None, str]:
     settings = get_settings()
     best_text = ""
-    best_candidate: Optional[Image.Image] = None
+    best_candidate: Image.Image | None = None
     best_psm_mode = settings.tesseract_psm_modes[0] if settings.tesseract_psm_modes else 6
     best_coordinate_system = "normalized_image_pixels"
     best_score = (0, 0)

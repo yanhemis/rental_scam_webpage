@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Optional, Union
 
 import re
 from dataclasses import dataclass
@@ -196,7 +195,7 @@ LARGE_UNITS = {"만": 10_000, "억": 100_000_000}
 def extract_contract_fields(
     text: str,
     locations: list[ExtractedTextLocation],
-    document_type: Optional[ContractDocumentType] = None,
+    document_type: ContractDocumentType | None = None,
 ) -> ContractFieldExtractionResult:
     requested_type = document_type or ContractDocumentType.unknown
     selected_type = requested_type
@@ -588,7 +587,7 @@ def _repair_property_fields_from_text(fields: dict[str, ContractFieldValue], tex
         fields[field_id] = _field(display, display, 0.76, True, evidence)
 
 
-def _repair_land_area_display(lines: list[str]) -> Optional[str]:
+def _repair_land_area_display(lines: list[str]) -> str | None:
     best_line = _best_line(
         lines,
         required=("\ud1a0", "\uba74\uc801"),
@@ -603,7 +602,7 @@ def _repair_land_area_display(lines: list[str]) -> Optional[str]:
     return _trim_display_line(best_line)
 
 
-def _repair_building_info_display(lines: list[str]) -> Optional[str]:
+def _repair_building_info_display(lines: list[str]) -> str | None:
     best_line = _best_line(
         lines,
         required=("\uac74",),
@@ -621,7 +620,7 @@ def _repair_building_info_display(lines: list[str]) -> Optional[str]:
     return _trim_display_line(best_line)
 
 
-def _repair_lease_area_display(lines: list[str]) -> Optional[str]:
+def _repair_lease_area_display(lines: list[str]) -> str | None:
     best_line = _best_line(
         lines,
         required=("\uc784\ub300\ud560\ubd80\ubd84",),
@@ -642,8 +641,8 @@ def _best_line(
     required: tuple[str, ...],
     preferred: tuple[str, ...],
     needs_number: bool,
-) -> Optional[str]:
-    best: Optional[tuple[int, str]] = None
+) -> str | None:
+    best: tuple[int, str] | None = None
     for line in lines:
         compact = _compact(line)
         if not all(term in compact for term in required):
@@ -659,7 +658,7 @@ def _best_line(
     return best[1] if best else None
 
 
-def _extract_area_text(text: str) -> Optional[str]:
+def _extract_area_text(text: str) -> str | None:
     matches = re.findall(r"\d+(?:\.\.?\d+)?", text)
     if not matches:
         return None
@@ -667,7 +666,7 @@ def _extract_area_text(text: str) -> Optional[str]:
     return normalized[-1]
 
 
-def _extract_building_structure_text(text: str) -> Optional[str]:
+def _extract_building_structure_text(text: str) -> str | None:
     compact = re.sub(r"\s+", "", text)
     match = re.search(r"(?:구조[·ㆍ.]?용도|구조|용도)(.+?)(?:면적|m2|㎡|m\b|$)", compact)
     if not match:
@@ -681,7 +680,7 @@ def _trim_display_line(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()[:120]
 
 
-def _numeric_field_value(field: Optional[ContractFieldValue]) -> Optional[int]:
+def _numeric_field_value(field: ContractFieldValue | None) -> int | None:
     if field is None or field.value in (None, ""):
         return None
     if isinstance(field.value, bool):
@@ -838,7 +837,7 @@ def _extract_property_display_candidates(
     return best_candidates
 
 
-def _find_property_display_start(lines: list[list[ExtractedTextLocation]]) -> Optional[int]:
+def _find_property_display_start(lines: list[list[ExtractedTextLocation]]) -> int | None:
     for index, line in enumerate(lines):
         compact = _compact(_line_text(line))
         if "부동산의표시" in compact or ("부동산" in compact and "표시" in compact):
@@ -850,7 +849,7 @@ def _find_property_display_start(lines: list[list[ExtractedTextLocation]]) -> Op
     return None
 
 
-def _property_field_for_line(text: str) -> Optional[str]:
+def _property_field_for_line(text: str) -> str | None:
     compact = _compact(text)
     if any(term in compact for term in ("소재지", "소제지", "주소")):
         return None
@@ -886,7 +885,7 @@ def _extract_payment_table_candidates(
         if table_start is None:
             continue
 
-        amount_rows: list[tuple[Optional[str], int, list[ExtractedTextLocation], int]] = []
+        amount_rows: list[tuple[str | None, int, list[ExtractedTextLocation], int]] = []
         for line in page_lines[table_start + 1 : min(len(page_lines), table_start + 12)]:
             text = _line_text(line)
             if _looks_like_article_two(text):
@@ -931,7 +930,7 @@ def _extract_payment_table_candidates(
     return best_candidates
 
 
-def _find_contract_table_start(lines: list[list[ExtractedTextLocation]]) -> Optional[int]:
+def _find_contract_table_start(lines: list[list[ExtractedTextLocation]]) -> int | None:
     for index, line in enumerate(lines):
         text = _compact(_line_text(line))
         if "계약내용" in text and "2" in text:
@@ -944,7 +943,7 @@ def _find_contract_table_start(lines: list[list[ExtractedTextLocation]]) -> Opti
 
 
 def _payment_row_fields_for_amounts(
-    amount_rows: list[tuple[Optional[str], int, list[ExtractedTextLocation], int]],
+    amount_rows: list[tuple[str | None, int, list[ExtractedTextLocation], int]],
 ) -> tuple[str, ...]:
     if len(amount_rows) == 4:
         return ("deposit_amount", "contract_payment", "balance_payment", "monthly_rent")
@@ -953,7 +952,7 @@ def _payment_row_fields_for_amounts(
     return PAYMENT_ROW_FIELDS[: len(amount_rows)]
 
 
-def _payment_field_for_line(text: str) -> Optional[str]:
+def _payment_field_for_line(text: str) -> str | None:
     compact = _compact(text)
     if "차임" in compact or ("차" in compact and "임" in compact):
         return "monthly_rent"
@@ -973,7 +972,7 @@ def _looks_like_article_two(text: str) -> bool:
     return "제2조" in compact or "존속기간" in compact or "존숙기간" in compact
 
 
-def _best_amount_in_line(text: str) -> Optional[int]:
+def _best_amount_in_line(text: str) -> int | None:
     amounts: list[int] = []
     for match in re.finditer(r"[0-9][0-9,./\\s]{3,}[0-9]", text):
         raw = match.group(0)
@@ -1002,7 +1001,7 @@ def _amount_quality(text: str, amount: int) -> int:
 def _extract_period_after_contract_table(
     lines: list[list[ExtractedTextLocation]],
     table_start: int,
-) -> Optional[tuple[tuple[str, str, int], tuple[str, str, int], list[ExtractedTextLocation]]]:
+) -> tuple[tuple[str, str, int], tuple[str, str, int], list[ExtractedTextLocation]] | None:
     for index, line in enumerate(lines[table_start + 1 : min(len(lines), table_start + 16)], start=table_start + 1):
         if not _looks_like_article_two(_line_text(line)):
             continue
@@ -1046,7 +1045,7 @@ def _line_has_label(line: list[ExtractedTextLocation], labels: tuple[str, ...]) 
 def _right_context_for_labels(
     line: list[ExtractedTextLocation],
     labels: tuple[str, ...],
-) -> Optional[tuple[str, list[ExtractedTextLocation]]]:
+) -> tuple[str, list[ExtractedTextLocation]] | None:
     label_indexes = [
         index
         for index, item in enumerate(line)
@@ -1070,7 +1069,7 @@ def _right_context_for_labels(
 
 
 def _axis_field(
-    value: Union[str, int, float, bool, list, None],
+    value: str | int | float | bool | list | None,
     display_value: str,
     confidence: float,
     locations: list[ExtractedTextLocation],
@@ -1126,7 +1125,7 @@ def _collect_special_term_locations(
     return collected
 
 
-def _extract_address_candidate(text: str) -> Optional[str]:
+def _extract_address_candidate(text: str) -> str | None:
     cleaned = re.sub(r"\s+", " ", text).strip()
     match = re.search(r"((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|전라|경상|제주|전주)[^\\n]{4,80})", cleaned)
     if match:
@@ -1155,7 +1154,7 @@ def _line_y_center(line: list[ExtractedTextLocation]) -> float:
     return sum(_y_center(item) for item in line) / len(line)
 
 
-def _extract_amount_from_text(text: str) -> Optional[int]:
+def _extract_amount_from_text(text: str) -> int | None:
     number_match = re.search(r"([0-9][0-9,]{3,})", text)
     if number_match:
         return int(re.sub(r"\D", "", number_match.group(1)))
@@ -1191,7 +1190,7 @@ def _looks_like_address(value: str) -> bool:
     return bool(region_hit and road_hit)
 
 
-def _parse_korean_amount(value: str) -> Optional[int]:
+def _parse_korean_amount(value: str) -> int | None:
     compact_value = re.sub(r"\s|원|정|금", "", value)
     if not compact_value:
         return None
@@ -1246,7 +1245,7 @@ READABLE_AMOUNT_CHARS = "".join(
 )
 
 
-def _extract_korean_amount_from_text(text: str) -> Optional[int]:
+def _extract_korean_amount_from_text(text: str) -> int | None:
     candidates: list[int] = []
     pattern = re.compile(rf"[\s{re.escape(READABLE_AMOUNT_CHARS)}]{{2,}}")
     for match in pattern.finditer(text):
@@ -1256,7 +1255,7 @@ def _extract_korean_amount_from_text(text: str) -> Optional[int]:
     return max(candidates) if candidates else None
 
 
-def _parse_readable_korean_amount(value: str) -> Optional[int]:
+def _parse_readable_korean_amount(value: str) -> int | None:
     compact_value = re.sub(r"[\s,·ㆍ:：()]", "", value or "")
     compact_value = re.sub(r"^(?:\uc77c\uae08|\uae08)", "", compact_value)
     compact_value = re.sub(r"(?:\uc6d0|\uc815)$", "", compact_value)
@@ -1359,14 +1358,14 @@ def _period_relevant_text(text: str) -> tuple[str, int]:
 
 def _select_period_date_pair(
     dates: list[tuple[str, str, int]],
-) -> Optional[tuple[tuple[str, str, int], tuple[str, str, int]]]:
+) -> tuple[tuple[str, str, int], tuple[str, str, int]] | None:
     parsed = []
     for item in dates:
         date = _parse_yyyy_mm_dd(item[1])
         if date is not None:
             parsed.append((date, item))
 
-    best: Optional[tuple[int, tuple[tuple[str, str, int], tuple[str,str, int]]]] = None
+    best: tuple[int, tuple[tuple[str, str, int], tuple[str, str, int]]] | None = None
     for left_index, (left_date, left_item) in enumerate(parsed):
         left_year, left_month, left_day = left_date
         for right_date, right_item in parsed[left_index + 1 :]:
@@ -1395,7 +1394,7 @@ def _select_period_date_pair(
     return None
 
 
-def _parse_yyyy_mm_dd(value: str) -> Optional[tuple[int, int, int]]:
+def _parse_yyyy_mm_dd(value: str) -> tuple[int, int, int] | None:
     match = re.match(r"(\d{4})\.(\d{2})\.(\d{2})$", value)
     if not match:
         return None
@@ -1431,7 +1430,7 @@ def _find_date_pair_near_period_label(text: str, date_matches: list[tuple[str, s
 def _evidence(
     locations: list[ExtractedTextLocation],
     label_terms: tuple[str, ...],
-    value_text: Union[str, int, float, bool, list, None],
+    value_text: str | int | float | bool | list | None,
 ) -> list[ContractFieldEvidence]:
     if not locations:
         return []
@@ -1497,7 +1496,7 @@ def _union_bbox(items: list[ExtractedTextLocation]) -> list[float]:
 
 
 def _field(
-    value: Union[str, int, float, bool, list, None],
+    value: str | int | float | bool | list | None,
     display_value: str,
     confidence: float,
     needs_review: bool,
