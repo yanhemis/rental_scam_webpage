@@ -5,9 +5,7 @@ python-dotenv
 pydantic
 httpx
 PyMuPDF
-pytesseract
 Pillow
-easyocr
 numpy<2.4,>=1.24
 paddleocr
 paddlepaddle==3.2.2

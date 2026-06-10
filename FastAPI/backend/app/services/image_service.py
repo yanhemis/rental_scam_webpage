@@ -4,11 +4,42 @@ from pathlib import Path
 from shutil import which
 from typing import Optional, Union
 
-import pytesseract
 from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 
 from app.config import get_settings
 from app.schemas.extraction_schema import ExtractedTextLocation, ExtractionLocationSource
+
+try:
+    import pytesseract
+
+    _PYTESSERACT_AVAILABLE = True
+except ImportError:
+    _PYTESSERACT_AVAILABLE = False
+
+    class _MissingPytesseract:
+        class TesseractNotFoundError(RuntimeError):
+            pass
+
+        class TesseractError(RuntimeError):
+            pass
+
+        class Output:
+            DICT = "dict"
+
+        class _PytesseractModule:
+            tesseract_cmd = ""
+
+        pytesseract = _PytesseractModule()
+
+        @staticmethod
+        def image_to_string(*_args, **_kwargs):
+            raise RuntimeError("pytesseract is not installed. Install it or set LOCAL_OCR_PROVIDER=paddleocr.")
+
+        @staticmethod
+        def image_to_data(*_args, **_kwargs):
+            raise RuntimeError("pytesseract is not installed. Install it or set LOCAL_OCR_PROVIDER=paddleocr.")
+
+    pytesseract = _MissingPytesseract()
 
 _easyocr_reader = None
 _paddleocr_reader = None
@@ -426,6 +457,9 @@ def _ocr_candidates(image: Image.Image, lang: str) -> str:
 
 
 def _ensure_tesseract_cmd() -> None:
+    if not _PYTESSERACT_AVAILABLE:
+        raise RuntimeError("pytesseract is not installed. Install it or set LOCAL_OCR_PROVIDER=paddleocr.")
+
     tesseract_cmd = _resolve_tesseract_cmd()
     if tesseract_cmd is None:
         raise RuntimeError(
