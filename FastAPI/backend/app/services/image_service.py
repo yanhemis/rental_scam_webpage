@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Optional, Union,  Optional
 from shutil import which
+from typing import Optional, Union
 
 import pytesseract
 from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
@@ -432,7 +434,7 @@ def _ensure_tesseract_cmd() -> None:
     pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
 
 
-def extract_text_from_image(file_path: str | Path) -> str:
+def extract_text_from_image(file_path: Union[str, Path]) -> str:
     image_path = Path(file_path)
     settings = get_settings()
 
@@ -466,7 +468,7 @@ def extract_text_from_image(file_path: str | Path) -> str:
 
 
 def extract_text_locations_from_image(
-    file_path: str | Path,
+    file_path: Union[str, Path],
 ) -> tuple[str, list[ExtractedTextLocation]]:
     image_path = Path(file_path)
     settings = get_settings()

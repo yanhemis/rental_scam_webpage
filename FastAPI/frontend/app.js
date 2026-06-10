@@ -998,7 +998,7 @@ function renderPreviewOverlays() {
     if (!pageEl) return;
     if (!isCompatibleCoordinateSystem(evidence.coordinate_system, pageEl.dataset.coordinateSystem)) return;
     const bbox = evidence.value_bbox?.length === 4 ? evidence.value_bbox : evidence.bbox;
-    const box = bboxToPercentBox(bbox, pageEl);
+    const box = normalizeEvidenceBox(bboxToPercentBox(bbox, pageEl), evidence.field_id);
     if (!box) return;
     const overlay = pageEl.querySelector(".preview-overlay");
     const marker = document.createElement("span");
@@ -1010,10 +1010,33 @@ function renderPreviewOverlays() {
 }
 
 function collectFieldEvidenceBoxes() {
+  const visibleFieldIds = new Set([
+    "land_area",
+    "building_info",
+    "lease_area",
+    "deposit_amount",
+    "monthly_rent",
+    "sale_price",
+    "contract_payment",
+    "intermediate_payment",
+    "balance_payment",
+    "lease_start_date",
+    "lease_end_date",
+    "special_terms",
+    "risk_flags",
+  ]);
   const fields = state.uploadResult?.contract_fields?.fields || {};
   return Object.entries(fields)
+    .filter(([fieldId]) => visibleFieldIds.has(fieldId))
     .flatMap(([fieldId, field]) => (field?.evidence || []).map((evidence) => ({ ...evidence, field_id: fieldId })))
+    .filter((evidence) => !isBrokerageOnlyEvidence(evidence))
     .filter((evidence) => evidence?.page_number && (evidence.value_bbox?.length === 4 || evidence.bbox?.length === 4));
+}
+
+function isBrokerageOnlyEvidence(evidence) {
+  if (!["special_terms", "risk_flags"].includes(evidence.field_id)) return false;
+  const text = String(evidence.text || evidence.value_text || "");
+  return /중개보수|중개수수료|거래가액/.test(text);
 }
 
 function fieldEvidenceClass(fieldId) {
@@ -1052,6 +1075,44 @@ function bboxToPercentBox(bbox, pageEl) {
     top: `${clamp((y0 / height) * 100, 0, 100)}%`,
     width: `${clamp(((x1 - x0) / width) * 100, 0, 100)}%`,
     height: `${clamp(((y1 - y0) / height) * 100, 0, 100)}%`,
+  };
+}
+
+function normalizeEvidenceBox(box, fieldId) {
+  if (!box) return null;
+  const left = parseFloat(box.left);
+  const top = parseFloat(box.top);
+  const width = parseFloat(box.width);
+  const height = parseFloat(box.height);
+  if (![left, top, width, height].every(Number.isFinite)) return box;
+
+  const presets = {
+    land_area: { padX: 5, minWidth: 38, minHeight: 1.9 },
+    building_info: { padX: 5, minWidth: 42, minHeight: 1.9 },
+    lease_area: { padX: 5, minWidth: 38, minHeight: 1.9 },
+    deposit_amount: { padX: 3, minWidth: 34, minHeight: 1.9 },
+    contract_payment: { padX: 3, minWidth: 34, minHeight: 1.9 },
+    intermediate_payment: { padX: 3, minWidth: 34, minHeight: 1.9 },
+    balance_payment: { padX: 3, minWidth: 34, minHeight: 1.9 },
+    monthly_rent: { padX: 3, minWidth: 34, minHeight: 1.9 },
+    lease_start_date: { padX: 4, minWidth: 54, minHeight: 2.1 },
+    lease_end_date: { padX: 4, minWidth: 54, minHeight: 2.1 },
+    special_terms: { padX: 2, minWidth: 62, minHeight: 5 },
+    risk_flags: { padX: 2, minWidth: 62, minHeight: 5 },
+  };
+  const preset = presets[fieldId];
+  if (!preset) return box;
+
+  const nextLeft = clamp(left - preset.padX, 0, 100);
+  const targetWidth = Math.max(width + preset.padX * 2, preset.minWidth);
+  const nextWidth = clamp(Math.min(targetWidth, 100 - nextLeft), 0, 100);
+  const nextHeight = Math.max(height, preset.minHeight);
+  const nextTop = clamp(top - Math.max(0, nextHeight - height) / 2, 0, 100);
+  return {
+    left: `${nextLeft}%`,
+    top: `${nextTop}%`,
+    width: `${nextWidth}%`,
+    height: `${clamp(nextHeight, 0, 100 - nextTop)}%`,
   };
 }
 

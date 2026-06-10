@@ -1,9 +1,9 @@
 from __future__ import annotations
-from typing import Optional, Union
 
 import base64
 from io import BytesIO
 from pathlib import Path
+from typing import Optional, Union
 
 import fitz
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -36,7 +36,7 @@ def _preview_coordinate_system_for_pdf() -> str:
 
 
 def build_document_preview_pages(
-    file_path: str | Path,
+    file_path: Union[str, Path],
     content_type: Optional[str],
 ) -> list[DocumentPreviewPage]:
     settings = get_settings()

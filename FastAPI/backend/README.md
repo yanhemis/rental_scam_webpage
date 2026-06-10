@@ -1,23 +1,45 @@
-실행순서
+# FastAPI backend
 
-1. `.env.example`을 참고해 `.env`에 CLOVA Studio 설정을 입력한다.
-   - 실제 연동 시 `CLOVA_MOCK_ENABLED=false`
-   - `CLOVA_STUDIO_API_KEY`에는 발급받은 키를 입력
-   - `.env`는 Git에 커밋하지 않는다.
+This branch is the PaddleOCR deployment/test branch.
 
-압축해제한 venv 폴더를 backend 안에 집어넣기
+## Runtime
 
-1. FASTAPI 폴더 오픈
-2. 터미널에 cmd오픈
-3. cd backend 입력
-4. venv\Scripts\activate 입력
-5. python -m uvicorn app.main:app --reload 입력후 서버 실행확인
+- Recommended Python: 3.11
+- OCR provider: PaddleOCR
+- API base URL: `http://127.0.0.1:8001/api` for local frontend testing
 
+PaddleOCR and `paddlepaddle` are sensitive to Python/runtime versions. Use the same interpreter for installing dependencies and starting the server.
 
+## Local setup
 
-오류
-1. fastapi 경로를 못불러올 경우 콘솔창에 C:\Users\cs3-32\Desktop\FastAPI\backend\venv\Scripts\python.exe
-입력(경로 본인에 맞게 변경)
+```powershell
+cd C:\Users\USER\Desktop\FastAPI\_github_publish\FastAPI\backend
+py -3.11 -m venv ..\.venv-paddle
+..\.venv-paddle\Scripts\python.exe -m pip install -r requirements.txt
+```
 
-2. fastapi가 있는지 확인방법
-콘솔창에 pip show fastapi
+## Start server
+
+```powershell
+$env:LOCAL_OCR_PROVIDER = "paddleocr"
+$env:PDF_OCR_RENDER_SCALE = "2.0"
+$env:OCR_TIMEOUT_SECONDS = "240"
+$env:PRIVACY_TEMPLATE_REDACTION_ENABLED = "true"
+$env:DELETE_RAW_UPLOAD_AFTER_OCR = "true"
+$env:CLOVA_MOCK_ENABLED = "true"
+..\.venv-paddle\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8001
+```
+
+## Frontend test URL
+
+Serve `FastAPI/frontend` and open:
+
+```text
+http://127.0.0.1:5173/index.html?api=http://127.0.0.1:8001/api
+```
+
+## Notes
+
+- Do not run this branch with a different Python than the one used to install `requirements.txt`.
+- If `paddleocr` fails to import, recreate the virtual environment with Python 3.11 and reinstall dependencies.
+- Personal information redactions are opaque. General evidence boxes remain transparent highlights.

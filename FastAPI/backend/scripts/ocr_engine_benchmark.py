@@ -5,6 +5,7 @@ import os
 import time
 from io import BytesIO
 from pathlib import Path
+from typing import Union
 
 import fitz
 import numpy as np
@@ -18,7 +19,7 @@ def render_pdf_page(pdf_path: Path, page_number: int, scale: float) -> Image.Ima
     return Image.open(BytesIO(pixmap.tobytes("png"))).convert("RGB")
 
 
-def score_text(text: str) -> dict[str, float | int]:
+def score_text(text: str) -> dict[str, Union[float, int]]:
     compact = "".join(text.split())
     hangul = sum("가" <= char <= "힣" for char in compact)
     digits = sum(char.isdigit() for char in compact)

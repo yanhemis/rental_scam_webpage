@@ -1366,7 +1366,7 @@ def _select_period_date_pair(
         if date is not None:
             parsed.append((date, item))
 
-    best: Optional[tuple[int, tuple[tuple[str, str, int], tuple[str,str, int]]]] = None
+    best: Optional[tuple[int, tuple[tuple[str, str, int], tuple[str, str, int]]]] = None
     for left_index, (left_date, left_item) in enumerate(parsed):
         left_year, left_month, left_day = left_date
         for right_date, right_item in parsed[left_index + 1 :]:
