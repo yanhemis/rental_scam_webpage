@@ -265,10 +265,6 @@ def extract_contract_fields(
     fields["special_terms"] = _special_terms_field(text, locations)
     fields["risk_flags"] = _risk_flags_field(text, locations)
     axis_candidates = _extract_axis_field_candidates(locations)
-    if locations:
-        for amount_field_id in ("deposit_amount", "monthly_rent", "sale_price"):
-            if amount_field_id in fields and amount_field_id not in axis_candidates:
-                fields[amount_field_id] = _missing_field(amount_field_id)
     fields.update(_merge_axis_candidates(fields, axis_candidates))
     _infer_missing_payment_fields(fields)
     _repair_lease_period_from_text(fields, text)
@@ -341,16 +337,27 @@ def _amount_field(
     labels: tuple[str, ...],
 ) -> ContractFieldValue:
     search_text = _compact(text)
-    label_pattern = "|".join(re.escape(_compact(label)) for label in labels)
-    window_pattern = re.compile(rf"({label_pattern})(.{{0,90}})")
+    compact_labels = sorted((re.escape(_compact(label)) for label in labels), key=len, reverse=True)
+    label_pattern = "|".join(compact_labels)
+    window_pattern = re.compile(rf"(?=({label_pattern})(.{{0,90}}))")
+    candidates: list[tuple[int, int, str]] = []
     for match in window_pattern.finditer(search_text):
+        label = match.group(1)
         window = match.group(2)
+        if field_id == "monthly_rent" and label == "월세" and window.startswith(("계약", "계약서")):
+            continue
         amount = _extract_amount_from_text(window)
         if amount is None:
             continue
         if not _amount_in_expected_range(field_id, amount):
             continue
         value_text = match.group(0)
+
+        distance = _amount_distance_from_label(window)
+        candidates.append((distance, amount, value_text))
+
+    if candidates:
+        _distance, amount, value_text = min(candidates, key=lambda item: item[0])
         evidence = _evidence(locations, labels, value_text)
         confidence = 0.82 if evidence else 0.68
         return _field(amount, _format_won(amount), confidence, confidence < 0.75, evidence)
@@ -419,21 +426,28 @@ def _party_name_field(
 def _address_field(text: str, locations: list[ExtractedTextLocation]) -> ContractFieldValue:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     label_terms = ("소재지", "주소", "부동산의표시", "부동산의 표시")
-    for line in lines:
+    for index, line in enumerate(lines):
         compact_line = _compact(line)
         if "사무소" in compact_line or "중개사무소" in compact_line:
             continue
         if not any(_compact(label) in compact_line for label in label_terms):
             continue
-        if not _looks_like_address(compact_line):
-            continue
-        address_match = re.search(r"(?:소재지|주소)\s*[:：]?\s*(.{4,80})", line)
-        value = address_match.group(1).strip() if address_match else line[:80]
-        if not _looks_like_address(_compact(value)):
-            continue
-        evidence = _evidence(locations, label_terms, line)
-        confidence = 0.7 if evidence else 0.55
-        return _field(value, value, confidence, confidence < 0.75, evidence)
+
+        candidates = []
+        address_match = re.search(r"(?:소\s*재\s*지|주\s*소)\s*[:：]?\s*(.{4,100})", line)
+        if address_match:
+            candidates.append(address_match.group(1).strip())
+        candidates.append(_strip_property_suffix(line[:120]))
+        if index + 1 < len(lines):
+            candidates.append(_strip_property_suffix(lines[index + 1][:120]))
+
+        for value in candidates:
+            value = _clean_address_value(value)
+            if not _looks_like_address(_compact(value)):
+                continue
+            evidence = _evidence(locations, label_terms, value) or _evidence(locations, label_terms, line)
+            confidence = 0.76 if evidence else 0.62
+            return _field(value, value, confidence, confidence < 0.75, evidence)
     return _missing_field("address")
 
 
@@ -597,6 +611,7 @@ def _repair_land_area_display(lines: list[str]) -> Optional[str]:
     )
     if not best_line:
         return None
+    best_line = _property_text_segment(best_line, "land_area") or best_line
     area = _extract_area_text(best_line)
     if area:
         return f"\ud1a0\uc9c0 \uc9c0\ubaa9 \ub300 \uba74\uc801 {area}\u33a1"
@@ -612,6 +627,7 @@ def _repair_building_info_display(lines: list[str]) -> Optional[str]:
     )
     if not best_line:
         return None
+    best_line = _property_text_segment(best_line, "building_info") or best_line
     structure = _extract_building_structure_text(best_line)
     area = _extract_area_text(best_line)
     if structure and area:
@@ -619,6 +635,13 @@ def _repair_building_info_display(lines: list[str]) -> Optional[str]:
     if structure:
         return f"\uac74\ubb3c \uad6c\uc870\u00b7\uc6a9\ub3c4 {structure}"
     return _trim_display_line(best_line)
+
+
+def _property_text_segment(text: str, field_id: str) -> Optional[str]:
+    for candidate_field_id, segment in _split_property_line(text):
+        if candidate_field_id == field_id:
+            return segment
+    return None
 
 
 def _repair_lease_area_display(lines: list[str]) -> Optional[str]:
@@ -660,11 +683,22 @@ def _best_line(
 
 
 def _extract_area_text(text: str) -> Optional[str]:
-    matches = re.findall(r"\d+(?:\.\.?\d+)?", text)
-    if not matches:
-        return None
-    normalized = [match.replace("..", ".") for match in matches]
-    return normalized[-1]
+    patterns = (
+        r"면\s*적\s*([0-9]+(?:[.,]\d+)?)",
+        r"([0-9]+(?:[.,]\d+)?)\s*(?:㎡|m2|m²)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            return match.group(1).replace(",", ".")
+    return None
+
+
+def _amount_distance_from_label(window: str) -> int:
+    number_match = re.search(r"[0-9][0-9,./\\s]{3,}[0-9]", window)
+    korean_match = re.search(r"[일이삼사오육칠팔구십백천만억\s]{2,}원", window)
+    distances = [match.start() for match in (number_match, korean_match) if match]
+    return min(distances) if distances else len(window)
 
 
 def _extract_building_structure_text(text: str) -> Optional[str]:
@@ -818,16 +852,18 @@ def _extract_property_display_candidates(
         if start is None or end is None or end <= start:
             continue
 
-        page_candidates: dict[str, ContractFieldValue] = {}
+        page_candidates = _extract_property_geometry_candidates(
+            page_lines[start + 1 : end]
+        )
         for line in page_lines[start + 1 : end]:
             text = _line_text(line)
-            field_id = _property_field_for_line(text)
-            if not field_id or field_id in page_candidates:
-                continue
-            display = re.sub(r"\s+", " ", text).strip()
-            if len(display) < 4:
-                continue
-            page_candidates[field_id] = _axis_field(display[:160], display[:160], 0.74, line, field_id)
+            for field_id, display in _property_fields_for_line(text):
+                if field_id in page_candidates:
+                    continue
+                display = re.sub(r"\s+", " ", display).strip()
+                if len(display) < 4:
+                    continue
+                page_candidates[field_id] = _axis_field(display[:160], display[:160], 0.74, line, field_id)
 
         score = sum(1 for key in ("land_area", "building_info", "lease_area") if key in page_candidates)
         if score > best_score:
@@ -836,6 +872,140 @@ def _extract_property_display_candidates(
         if score == 3:
             break
     return best_candidates
+
+
+def _extract_property_geometry_candidates(
+    property_lines: list[list[ExtractedTextLocation]],
+) -> dict[str, ContractFieldValue]:
+    locations = [item for line in property_lines for item in line]
+    if not locations:
+        return {}
+
+    max_x = max(item.bbox[2] for item in locations)
+    area_pattern = re.compile(r"\d+(?:[.,]\d+)?\s*(?:m|㎡)", re.IGNORECASE)
+    area_locations = sorted(
+        (
+            item
+            for item in locations
+            if item.bbox[0] >= max_x * 0.65 and area_pattern.search(item.text)
+        ),
+        key=_y_center,
+    )
+    if len(area_locations) < 3:
+        return {}
+    area_locations = area_locations[:3]
+
+    land_anchor = next(
+        (item for item in locations if "토지" in _compact(item.text)),
+        None,
+    )
+    lease_terms = ("임대할부분", "임대할", "임대부분", "임대합부분", "입대합부분")
+    lease_anchor = next(
+        (
+            item
+            for item in locations
+            if any(term in _compact(item.text) for term in lease_terms)
+        ),
+        None,
+    )
+    if land_anchor is None or lease_anchor is None:
+        return {}
+
+    left_x_limit = min(land_anchor.bbox[0], lease_anchor.bbox[0]) + 45
+    building_anchor_candidates = [
+        item
+        for item in locations
+        if item not in (land_anchor, lease_anchor)
+        and item.bbox[0] <= left_x_limit
+        and _y_center(land_anchor) < _y_center(item) < _y_center(lease_anchor)
+    ]
+    building_left_y = (
+        _y_center(min(building_anchor_candidates, key=lambda item: item.bbox[0]))
+        if building_anchor_candidates
+        else (_y_center(land_anchor) + _y_center(lease_anchor)) / 2
+    )
+
+    row_ids = ("land_area", "building_info", "lease_area")
+    left_points = (
+        (land_anchor.bbox[0], _y_center(land_anchor)),
+        (land_anchor.bbox[0], building_left_y),
+        (lease_anchor.bbox[0], _y_center(lease_anchor)),
+    )
+    right_points = tuple(
+        ((item.bbox[0] + item.bbox[2]) / 2, _y_center(item))
+        for item in area_locations
+    )
+    rows: dict[str, list[ExtractedTextLocation]] = {row_id: [] for row_id in row_ids}
+
+    for item in locations:
+        compact = _compact(item.text)
+        if any(term in compact for term in ("소재지", "주소", "계약내용", "부동산의표시")):
+            continue
+
+        x_center = (item.bbox[0] + item.bbox[2]) / 2
+        if x_center >= max_x * 0.65:
+            field_id = row_ids[
+                min(
+                    range(len(area_locations)),
+                    key=lambda index: abs(_y_center(item) - _y_center(area_locations[index])),
+                )
+            ]
+        elif item is area_locations[0] or "토지" in compact or "지목" in compact:
+            field_id = "land_area"
+        elif item is area_locations[1] or any(
+            term in compact for term in ("건물", "건문", "철근", "콘크리트", "주택", "구조", "용도")
+        ):
+            field_id = "building_info"
+        elif item is area_locations[2] or any(term in compact for term in lease_terms):
+            field_id = "lease_area"
+        else:
+            distances = []
+            for row_index, row_id in enumerate(row_ids):
+                left_x, left_y = left_points[row_index]
+                right_x, right_y = right_points[row_index]
+                ratio = 0.0 if right_x == left_x else (x_center - left_x) / (right_x - left_x)
+                expected_y = left_y + max(0.0, min(1.0, ratio)) * (right_y - left_y)
+                distances.append((abs(_y_center(item) - expected_y), row_id))
+            distance, field_id = min(distances)
+            if distance > 18:
+                continue
+        rows[field_id].append(item)
+
+    candidates: dict[str, ContractFieldValue] = {}
+    for field_id in row_ids:
+        unique_row = {item.span_id: item for item in rows[field_id]}
+        row = sorted(unique_row.values(), key=lambda item: item.bbox[0])
+        if not row or area_locations[row_ids.index(field_id)] not in row:
+            continue
+        display_parts = [item.text for item in row]
+        if field_id == "building_info" and not any(
+            "건물" in _compact(part) or "건문" in _compact(part)
+            for part in display_parts
+        ):
+            display_parts = [part for part in display_parts if not re.fullmatch(r"\d+", part.strip())]
+            display_parts.insert(0, "건물")
+        display = _normalize_property_display(" ".join(display_parts), field_id)
+        candidates[field_id] = _axis_field(
+            display[:160],
+            display[:160],
+            0.82,
+            row,
+            field_id,
+        )
+    return candidates
+
+
+def _normalize_property_display(value: str, field_id: str) -> str:
+    display = re.sub(r"\s+", " ", value).strip()
+    display = re.sub(r"지\s*[iIl1]\s*목", "지목", display, flags=re.IGNORECASE)
+    display = re.sub(r"\b구\s+조\b", "구조", display)
+    display = re.sub(r"\b[0-9A-Za-z]?도(?=[가-힣]*주택)", "용도 ", display)
+    display = re.sub(r"(?:연\s*)?면\s*적(?:\s*적)?", "면적", display)
+    display = re.sub(r"\b면\s+(?=(?:약\s*)?\d)", "면적 ", display)
+    display = re.sub(r"\b적\s+(?=(?:약\s*)?\d)", "면적 ", display)
+    if field_id == "lease_area":
+        display = re.sub(r"임대합부분", "임대할 부분", display)
+    return re.sub(r"\s+", " ", display).strip()
 
 
 def _find_property_display_start(lines: list[list[ExtractedTextLocation]]) -> Optional[int]:
@@ -851,17 +1021,51 @@ def _find_property_display_start(lines: list[list[ExtractedTextLocation]]) -> Op
 
 
 def _property_field_for_line(text: str) -> Optional[str]:
+    fields = _property_fields_for_line(text)
+    return fields[0][0] if fields else None
+
+
+def _property_fields_for_line(text: str) -> list[tuple[str, str]]:
     compact = _compact(text)
     if any(term in compact for term in ("소재지", "소제지", "주소")):
-        return None
+        return []
+
+    segments = _split_property_line(text)
+    if segments:
+        return segments
+
     if "토지" in compact or "지목" in compact or "지면적" in compact:
-        return "land_area"
+        return [("land_area", text)]
     if "건물" in compact or "건문" in compact or ("구조" in compact and "용도" in compact):
-        return "building_info"
+        return [("building_info", text)]
     lease_terms = ("임대할부분", "임대할", "임대부분", "임대합부분", "입대합부분")
     if any(term in compact for term in lease_terms) or ("임대" in compact and "부분" in compact):
-        return "lease_area"
-    return None
+        return [("lease_area", text)]
+    return []
+
+
+def _split_property_line(text: str) -> list[tuple[str, str]]:
+    labels = (
+        ("land_area", r"토\s*지|지\s*목|지\s*면\s*적"),
+        ("building_info", r"건\s*물|건\s*문|구\s*조|용\s*도"),
+        ("lease_area", r"임\s*대\s*할\s*부\s*분|임\s*대\s*부\s*분|임\s*대\s*합\s*부\s*분|입\s*대\s*합\s*부\s*분"),
+    )
+    matches: list[tuple[int, str]] = []
+    for field_id, pattern in labels:
+        match = re.search(pattern, text)
+        if match:
+            matches.append((match.start(), field_id))
+    matches.sort(key=lambda item: item[0])
+    if len(matches) < 2:
+        return []
+
+    segments: list[tuple[str, str]] = []
+    for index, (start, field_id) in enumerate(matches):
+        end = matches[index + 1][0] if index + 1 < len(matches) else len(text)
+        segment = text[start:end].strip(" :：,，/|")
+        if len(_compact(segment)) >= 3:
+            segments.append((field_id, segment))
+    return segments
 
 
 PAYMENT_ROW_FIELDS = (
@@ -1128,7 +1332,11 @@ def _collect_special_term_locations(
 
 def _extract_address_candidate(text: str) -> Optional[str]:
     cleaned = re.sub(r"\s+", " ", text).strip()
-    match = re.search(r"((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|전라|경상|제주|전주)[^\\n]{4,80})", cleaned)
+    match = re.search(
+        r"((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|"
+        r"충청|충북|충남|전라|전북|전남|경상|경북|경남|제주|전주)[^\\n]{4,80})",
+        cleaned,
+    )
     if match:
         value = _trim_property_tail(match.group(1)).strip(" ,.")
         return value if _looks_like_address(_compact(value)) else None
@@ -1183,12 +1391,26 @@ def _looks_like_address(value: str) -> bool:
     if not value or "표시" in value or "사무소" in value:
         return False
     region_hit = re.search(
-        r"서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|전라|경상|제주|"
+        r"서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|충북|충남|"
+        r"전라|전북|전남|경상|경북|경남|제주|"
         r"전주|수원|성남|고양|용인|창원|청주|천안",
         value,
     )
     road_hit = re.search(r"[가-힣0-9]+(로|길|동|읍|면|구|군)\d*", value)
     return bool(region_hit and road_hit)
+
+
+def _clean_address_value(value: str) -> str:
+    value = re.sub(r"^\s*(?:소\s*재\s*지|주\s*소|부\s*동\s*산\s*의?\s*표\s*시)\s*[:：]?", "", value)
+    return _strip_property_suffix(value).strip(" :：,，/|")
+
+
+def _strip_property_suffix(value: str) -> str:
+    return re.split(
+        r"\s*(?:토\s*지|건\s*물|건\s*문|임\s*대\s*할\s*부\s*분|임\s*대\s*부\s*분)\s*[:：]?",
+        value,
+        maxsplit=1,
+    )[0]
 
 
 def _parse_korean_amount(value: str) -> Optional[int]:
